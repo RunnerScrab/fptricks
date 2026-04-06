@@ -49,10 +49,11 @@ pub fn approx_exp_f32(x: f32) -> f32 {
 
     //Range reduction x = n*ln2 + r
     let xv = (xltz & (-0.5_f32).to_bits()) | (xgeqz & (0.5_f32).to_bits());
-    let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
-    //let r = x - (n as f32) * LN2_HI - (n as f32) * LN2_LO;
+
     //mul_add will run like shit unless target-cpu=native is used
     //and the ISA has an FMA
+    let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
+    //let r = x - (n as f32) * LN2_HI - (n as f32) * LN2_LO;
     let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
 
     let is_good: u32 = !is_inf.wrapping_neg() & !is_z.wrapping_neg();
@@ -85,6 +86,8 @@ pub fn approx_exp_f64(x: f64) -> f64 {
     let n = (x * INV_LN2 + f64::from_bits(xv)) as i32;
 
     //let r = x - (n as f64) * LN2_HI - (n as f64) * LN2_LO;
+    //These mul_adds will run like shit unless -C target-cpu=native is used
+    //and the CPU has a fused multiply add instruction!
     let r = (-n as f64).mul_add(LN2_LO, (-n as f64).mul_add(LN2_HI, x));
 
     let is_good: u64 = !is_inf.wrapping_neg() & !is_z.wrapping_neg();
@@ -112,6 +115,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn test_f64() {
+        const testvalues: [f64; 200] = {
+            let mut table: [f64; 200] = [0.0; 200];
+            let mut idx = 0;
+            let mut val: f64 = 0.0;
+            while idx < table.len() {
+                table[idx] = val;
+                val += 1.0;
+                idx += 1;
+            }
+            table
+        };
+        for val in testvalues {
+            let r = approx_exp_f64(val);
+            println!("e^{} = {}; {}", val, val.exp(), r);
+        }
     }
 }
