@@ -2,6 +2,8 @@ pub trait FastFloatFnHaver {
     fn fast_mul2(self) -> Self;
     fn fast_div2(self) -> Self;
     fn fast_mul3(self) -> Self;
+    fn fast_mul4(self) -> Self;
+    fn fast_mul8(self) -> Self;
     fn approx_exp(self) -> Self;
     fn approx_ln(self) -> Self;
     fn approx_sqrt(self) -> Self;
@@ -27,6 +29,14 @@ impl FastFloatFnHaver for f32 {
 
     fn fast_mul3(self) -> Self {
         fast_mul3_f32(self)
+    }
+
+    fn fast_mul4(self) -> Self {
+        fast_mul4_f32(self)
+    }
+
+    fn fast_mul8(self) -> Self {
+        fast_mul8_f32(self)
     }
 
     fn approx_exp(self) -> Self {
@@ -77,6 +87,14 @@ impl FastFloatFnHaver for f64 {
 
     fn fast_mul3(self) -> Self {
         fast_mul3_f64(self)
+    }
+
+    fn fast_mul4(self) -> Self {
+        fast_mul4_f64(self)
+    }
+
+    fn fast_mul8(self) -> Self {
+        fast_mul8_f64(self)
     }
 
     fn approx_exp(self) -> Self {
@@ -143,6 +161,30 @@ pub fn fast_div2_f64(x: f64) -> f64 {
 #[inline(always)]
 pub fn fast_mul3_f64(x: f64) -> f64 {
     fast_mul2_f64(x) + x
+}
+
+#[inline(always)]
+pub fn fast_mul4_f32(x: f32) -> f32 {
+    const TWOEXP: u32 = 2 << 23;
+    f32::from_bits(x.to_bits().saturating_add(TWOEXP))
+}
+
+#[inline(always)]
+pub fn fast_mul4_f64(x: f64) -> f64 {
+    const TWOEXP: u64 = 2 << 52;
+    f64::from_bits(x.to_bits().saturating_add(TWOEXP))
+}
+
+#[inline(always)]
+pub fn fast_mul8_f32(x: f32) -> f32 {
+    const THREEEXP: u32 = 3 << 23;
+    f32::from_bits(x.to_bits().saturating_add(THREEEXP))
+}
+
+#[inline(always)]
+pub fn fast_mul8_f64(x: f64) -> f64 {
+    const THREEEXP: u64 = 3 << 52;
+    f64::from_bits(x.to_bits().saturating_add(THREEEXP))
 }
 
 #[inline(always)]
