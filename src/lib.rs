@@ -1,3 +1,55 @@
+pub trait FastFloatFnHaver {
+    fn fast_mul2(self) -> Self;
+    fn fast_div2(self) -> Self;
+    fn fast_mul3(self) -> Self;
+    fn approx_exp(self) -> Self;
+    fn approx_ln(self) -> Self;
+}
+
+impl FastFloatFnHaver for f32 {
+    fn fast_mul2(self) -> Self {
+        fast_mul2_f32(self)
+    }
+
+    fn fast_div2(self) -> Self {
+        fast_div2_f32(self)
+    }
+
+    fn fast_mul3(self) -> Self {
+        fast_mul3_f32(self)
+    }
+
+    fn approx_exp(self) -> Self {
+        approx_exp_f32(self)
+    }
+
+    fn approx_ln(self) -> Self {
+        approx_ln_f32(self)
+    }
+}
+
+impl FastFloatFnHaver for f64 {
+    fn fast_mul2(self) -> Self {
+        fast_mul2_f64(self)
+    }
+
+    fn fast_div2(self) -> Self {
+        fast_div2_f64(self)
+    }
+
+    fn fast_mul3(self) -> Self {
+        fast_mul3_f64(self)
+    }
+
+    fn approx_exp(self) -> Self {
+        approx_exp_f64(self)
+    }
+
+    fn approx_ln(self) -> Self {
+        approx_ln_f64(self)
+    }
+}
+
 #[inline(always)]
 pub fn fast_mul2_f32(x: f32) -> f32 {
     const ONEEXP: u32 = 1<<23;
@@ -57,6 +109,7 @@ pub fn approx_exp_f32(x: f32) -> f32 {
     let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
 
     let is_good: u32 = !is_inf.wrapping_neg() & !is_z.wrapping_neg();
+
     //Approximate e^r on [-0.35, 0.35] using the Taylor series
     let exponent = (n + 127) as u32;
     //let res_r = ((INV6 * r + 0.5) * r + 1.0) * r + 1.0;
@@ -69,6 +122,7 @@ pub fn approx_exp_f32(x: f32) -> f32 {
         | rv.to_bits() & is_good)
 }
 
+#[inline(always)]
 pub fn approx_exp_f64(x: f64) -> f64 {
     let xltz: u64 = ((x < 0.0) as u64).wrapping_neg();
     let xgeqz: u64 = ((x >= 0.0) as u64).wrapping_neg();
@@ -110,6 +164,40 @@ pub fn approx_exp_f64(x: f64) -> f64 {
     )
 }
 
+#[inline(always)]
+pub fn approx_ln_f32(x: f32) -> f32 {
+    const ONE_THIRD: f32 = 1.0/3.0;
+    let bits = x.to_bits();
+    let exponent = ((bits >> 23) as i32 - 127) as f32;
+    
+    let mantissa_bits = (bits & 0x007FFFFF) | 0x3F800000;
+    let mantissa = f32::from_bits(mantissa_bits);
+
+    // Linear approximation of ln(mantissa) for mantissa in [1, 2]
+    let m_adj = mantissa - 1.0;
+    //let ln_mantissa = m_adj * (1.0 - ONE_THIRD * m_adj); 
+    let ln_mantissa = m_adj * (-ONE_THIRD).mul_add(m_adj, 1.0); 
+
+    // ln(x) = ln(2^exp * mantissa) = exp * ln(2) + ln(mantissa)
+    exponent.mul_add(std::f32::consts::LN_2, ln_mantissa)
+}
+
+#[inline(always)]
+pub fn approx_ln_f64(x: f64) -> f64 {
+    const ONE_THIRD: f64 = 1.0 / 3.0;
+    let bits = x.to_bits();
+    let exponent = ((bits >> 52) as i64 - 1023) as f64;
+    let mantissa_bits = (bits & 0x000FFFFFFFFFFFFF) | 0x3FF0000000000000;
+    let mantissa = f64::from_bits(mantissa_bits);
+
+    let m_adj = mantissa - 1.0;
+    
+    let ln_mantissa = m_adj * (-ONE_THIRD).mul_add(m_adj, 1.0);
+
+    // ln(x) = exp * ln(2) + ln(mantissa)
+    exponent.mul_add(std::f64::consts::LN_2, ln_mantissa)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,7 +217,8 @@ mod tests {
         };
         for val in testvalues {
             let r = approx_exp_f64(val);
-            println!("e^{} = {}; {}", val, val.exp(), r);
+            let lnr = approx_ln_f64(r);
+            println!("e^{} = {}; {}; ln(approx) = {}", val, val.exp(), r, lnr);
         }
     }
 }
