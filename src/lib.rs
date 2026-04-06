@@ -51,6 +51,8 @@ pub fn approx_exp_f32(x: f32) -> f32 {
     let xv = (xltz & (-0.5_f32).to_bits()) | (xgeqz & (0.5_f32).to_bits());
     let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
     //let r = x - (n as f32) * LN2_HI - (n as f32) * LN2_LO;
+    //mul_add will run like shit unless target-cpu=native is used
+    //and the ISA has an FMA
     let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
 
     let is_good: u32 = !is_inf.wrapping_neg() & !is_z.wrapping_neg();
