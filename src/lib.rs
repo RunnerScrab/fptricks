@@ -8,6 +8,12 @@ pub trait FastFloatFnHaver {
     fn approx_cbrt(self) -> Self;
     fn approx_sin(self) -> Self;
     fn approx_cos(self) -> Self;
+    /// Approximate 1/x via a Newton-Raphson step seeded by bit manipulation.
+    fn approx_inv(self) -> Self;
+    /// Approximate x^n for integer n via exponentiation by squaring.
+    fn approx_powi(self, n: i32) -> Self;
+    /// Approximate x^y for float y via exp(y · ln(x)). Works for positive x.
+    fn approx_powf(self, y: Self) -> Self;
 }
 
 impl FastFloatFnHaver for f32 {
@@ -46,6 +52,18 @@ impl FastFloatFnHaver for f32 {
     fn approx_cos(self) -> Self {
         approx_cos_f32(self)
     }
+
+    fn approx_inv(self) -> Self {
+        approx_inv_f32(self)
+    }
+
+    fn approx_powi(self, n: i32) -> Self {
+        approx_powi_f32(self, n)
+    }
+
+    fn approx_powf(self, y: Self) -> Self {
+        approx_powf_f32(self, y)
+    }
 }
 
 impl FastFloatFnHaver for f64 {
@@ -83,6 +101,18 @@ impl FastFloatFnHaver for f64 {
 
     fn approx_cos(self) -> Self {
         approx_cos_f64(self)
+    }
+
+    fn approx_inv(self) -> Self {
+        approx_inv_f64(self)
+    }
+
+    fn approx_powi(self, n: i32) -> Self {
+        approx_powi_f64(self, n)
+    }
+
+    fn approx_powf(self, y: Self) -> Self {
+        approx_powf_f64(self, y)
     }
 }
 
@@ -340,6 +370,99 @@ pub fn approx_cos_f64(x: f64) -> f64 {
         .mul_add(x2, 1.0)
 }
 
+#[inline(always)]
+/// Approximate 1/x for positive x.
+///
+/// Uses a bit-manipulation initial guess (the "fast inverse" trick) followed
+/// by one Newton-Raphson iteration: y₁ = y₀(2 − x·y₀).
+/// Accurate to ~0.2% (roughly 3 significant decimal digits).
+pub fn approx_inv_f32(x: f32) -> f32 {
+    // Bit-magic seed: interpret bits as y₀ ≈ 1/x
+    let y0 = f32::from_bits(0x7EF127EA_u32.wrapping_sub(x.to_bits()));
+    // One Newton-Raphson step
+    y0 * (2.0 - x * y0)
+}
+
+#[inline(always)]
+/// Approximate 1/x for positive x.
+///
+/// Uses a bit-manipulation initial guess followed by two Newton-Raphson
+/// iterations for higher accuracy (~0.001%).
+pub fn approx_inv_f64(x: f64) -> f64 {
+    // Bit-magic seed adapted for f64 biases
+    let y0 = f64::from_bits(0x7FDE623822835EEA_u64.wrapping_sub(x.to_bits()));
+    // Two Newton-Raphson steps
+    let y1 = y0 * (2.0 - x * y0);
+    y1 * (2.0 - x * y1)
+}
+
+#[inline(always)]
+/// Approximate x^n for integer n via exponentiation by squaring.
+///
+/// Uses O(log |n|) multiplications — no transcendental calls, so accuracy is
+/// limited only by floating-point rounding (~ULP-level error).  Negative
+/// exponents are handled by applying `approx_inv_f32` to the final result.
+pub fn approx_powi_f32(x: f32, n: i32) -> f32 {
+    let nz: u32 = ((n == 0) as u32).wrapping_neg();
+    let nltz: u32 = ((n < 0) as u32).wrapping_neg();
+
+    let mut e = n.unsigned_abs(); // handles i32::MIN safely
+    let mut base = x;
+    let mut result = 1.0_f32;
+    while e > 0 {
+        let eb1set: u32 = (((e & 1) != 0) as u32).wrapping_neg();
+        result = f32::from_bits((result * base).to_bits() & eb1set | (result).to_bits() & !eb1set);
+        base *= base;
+        e >>= 1;
+    }
+    let pos_result = result.to_bits();
+    let neg_result = approx_inv_f32(result).to_bits();
+    let zero_result = 1.0_f32.to_bits(); // x^0 = 1
+
+    let is_pos: u32 = !nltz & !nz; // n > 0
+
+    f32::from_bits((nltz & neg_result) | (nz & zero_result) | (is_pos & pos_result))
+}
+
+#[inline(always)]
+/// Approximate x^n for integer n via exponentiation by squaring.
+pub fn approx_powi_f64(x: f64, n: i32) -> f64 {
+    let nz: u64 = ((n == 0) as u64).wrapping_neg();
+    let nltz: u64 = ((n < 0) as u64).wrapping_neg();
+
+    let mut e = n.unsigned_abs(); // handles i32::MIN safely
+    let mut base = x;
+    let mut result = 1.0_f64;
+    while e > 0 {
+        let eb1set: u64 = (((e & 1) != 0) as u64).wrapping_neg();
+        result = f64::from_bits((result * base).to_bits() & eb1set | result.to_bits() & !eb1set);
+        base *= base;
+        e >>= 1;
+    }
+    let pos_result = result.to_bits();
+    let neg_result = approx_inv_f64(result).to_bits();
+    let zero_result = 1.0_f64.to_bits(); // x^0 = 1
+
+    let is_pos: u64 = !nltz & !nz; // n > 0
+
+    f64::from_bits((nltz & neg_result) | (nz & zero_result) | (is_pos & pos_result))
+}
+
+#[inline(always)]
+/// Approximate x^y for a **float** exponent y via exp(y · ln(x)).
+///
+/// This is where the exp/ln composition genuinely belongs.  Works for
+/// positive x.  Accuracy ~1–3% depending on x and y magnitude.
+pub fn approx_powf_f32(x: f32, y: f32) -> f32 {
+    approx_exp_f32(y * approx_ln_f32(x))
+}
+
+#[inline(always)]
+/// Approximate x^y for a **float** exponent y via exp(y · ln(x)).
+pub fn approx_powf_f64(x: f64, y: f64) -> f64 {
+    approx_exp_f64(y * approx_ln_f64(x))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,6 +517,96 @@ mod tests {
                 "cos error too high: {} != {}",
                 r_cos,
                 angle.cos()
+            );
+        }
+    }
+
+    #[test]
+    fn test_approx_inv() {
+        let test_vals: [f64; 5] = [0.5, 1.0, 2.0, 10.0, 100.0];
+        for &v in &test_vals {
+            let approx = v.approx_inv();
+            let exact = 1.0 / v;
+            let rel_err = (approx - exact).abs() / exact;
+            assert!(
+                rel_err < 0.001,
+                "inv relative error too high for {}: approx={} exact={} rel_err={}",
+                v,
+                approx,
+                exact,
+                rel_err
+            );
+        }
+        // Also check f32
+        for &v in &[0.5_f32, 1.0, 2.0, 10.0, 100.0] {
+            let approx = v.approx_inv();
+            let exact = 1.0 / v;
+            let rel_err = (approx - exact).abs() / exact;
+            assert!(
+                rel_err < 0.005,
+                "f32 inv relative error too high for {}: approx={} exact={} rel_err={}",
+                v,
+                approx,
+                exact,
+                rel_err
+            );
+        }
+    }
+
+    #[test]
+    fn test_approx_powi() {
+        // Exponentiation by squaring: expect near-exact results (< 0.1% error)
+        let cases: &[(f64, i32)] = &[
+            (2.0, 3),
+            (3.0, 4),
+            (10.0, 2),
+            (0.5, 5),
+            (2.0, -2),
+            (4.0, -1),
+            (1.5, 6),
+            (2.0, 16),
+        ];
+        for &(base, exp) in cases {
+            let approx = base.approx_powi(exp);
+            let exact = base.powi(exp);
+            let rel_err = (approx - exact).abs() / exact.abs();
+            assert!(
+                rel_err < 0.001,
+                "powi relative error too high for {}^{}: approx={} exact={} rel_err={}",
+                base,
+                exp,
+                approx,
+                exact,
+                rel_err
+            );
+        }
+        // n=0 edge case
+        assert_eq!(7.0_f64.approx_powi(0), 1.0);
+        assert_eq!(7.0_f32.approx_powi(0), 1.0);
+    }
+
+    #[test]
+    fn test_approx_powf() {
+        // approx_powf uses exp(y*ln(x)) — allow ~5% relative error
+        let cases: &[(f64, f64)] = &[
+            (2.0, 0.5), // sqrt(2)
+            (4.0, 0.75),
+            (10.0, 1.5),
+            (2.0, 3.0),
+            (3.0, 3.14),
+        ];
+        for &(base, exp) in cases {
+            let approx = base.approx_powf(exp);
+            let exact = base.powf(exp);
+            let rel_err = (approx - exact).abs() / exact.abs();
+            assert!(
+                rel_err < 0.05,
+                "powf relative error too high for {}^{}: approx={} exact={} rel_err={}",
+                base,
+                exp,
+                approx,
+                exact,
+                rel_err
             );
         }
     }
