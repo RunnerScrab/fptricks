@@ -49,11 +49,12 @@ pub fn approx_exp_f32(x: f32) -> f32 {
 
     //Range reduction x = n*ln2 + r
     let xv = (xltz & (-0.5_f32).to_bits()) | (xgeqz & (0.5_f32).to_bits());
-    let n = (x * INV_LN2 + (f32::from_bits(xv))) as i32;
-    let r = x - (n as f32) * LN2_HI - (n as f32) * LN2_LO;
+    let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
+    //let r = x - (n as f32) * LN2_HI - (n as f32) * LN2_LO;
+    let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
 
     let is_good: u32 = !is_inf.wrapping_neg() & !is_z.wrapping_neg();
-    //Approximate e^r on [-0.35, 0.35]
+    //Approximate e^r on [-0.35, 0.35] using the Taylor series
     let exponent = (n + 127) as u32;
     //let res_r = ((INV6 * r + 0.5) * r + 1.0) * r + 1.0;
     let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
@@ -81,7 +82,8 @@ pub fn approx_exp_f64(x: f64) -> f64 {
     let xv = (xltz & (-0.5_f64).to_bits()) | (xgeqz & (0.5_f64).to_bits());
     let n = (x * INV_LN2 + f64::from_bits(xv)) as i32;
 
-    let r = x - (n as f64) * LN2_HI - (n as f64) * LN2_LO;
+    //let r = x - (n as f64) * LN2_HI - (n as f64) * LN2_LO;
+    let r = (-n as f64).mul_add(LN2_LO, (-n as f64).mul_add(LN2_HI, x));
 
     let is_good: u64 = !is_inf.wrapping_neg() & !is_z.wrapping_neg();
 
