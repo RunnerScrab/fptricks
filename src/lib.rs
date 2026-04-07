@@ -6,217 +6,229 @@ pub trait FastFloatFnHaver {
     fn fast_mul8(self) -> Self;
     fn approx_exp(self) -> Self;
     fn approx_ln(self) -> Self;
+    ///Faster only for f64
     fn approx_sqrt(self) -> Self;
     fn approx_cbrt(self) -> Self;
     fn approx_sin(self) -> Self;
     fn approx_cos(self) -> Self;
-    /// Approximate 1/x via a Newton-Raphson step seeded by bit manipulation.
     fn approx_inv(self) -> Self;
-    /// Approximate x^n for integer n via exponentiation by squaring.
+    ///Worse in all cases
     fn approx_powi(self, n: i32) -> Self;
-    /// Approximate x^y for float y via exp(y · ln(x)). Works for positive x.
+    ///Faster only for f64
     fn approx_powf(self, y: Self) -> Self;
 }
 
 impl FastFloatFnHaver for f32 {
     #[inline(always)]
     fn fast_mul2(self) -> Self {
-        fast_mul2_f32(self)
+        fast_mul2_f32(self) //faster
     }
 
     #[inline(always)]
     fn fast_div2(self) -> Self {
-        fast_div2_f32(self)
+        //fast_div2_f32(self) // about the same
+        self / 2.0
     }
 
     #[inline(always)]
     fn fast_mul3(self) -> Self {
-        fast_mul3_f32(self)
+        //fast_mul3_f32(self) // slower
+        self * 3.0
     }
 
     #[inline(always)]
     fn fast_mul4(self) -> Self {
-        fast_mul4_f32(self)
+        //fast_mul4_f32(self) // about the same
+        self * 4.0
     }
 
     #[inline(always)]
     fn fast_mul8(self) -> Self {
-        fast_mul8_f32(self)
+        fast_mul8_f32(self) // about the same but more consistent
     }
 
     #[inline(always)]
     fn approx_exp(self) -> Self {
-        approx_exp_f32(self)
+        //approx_exp_f32(self) slower
+        self.exp()
     }
 
     #[inline(always)]
     fn approx_ln(self) -> Self {
-        approx_ln_f32(self)
+        approx_ln_f32(self) //faster
     }
 
     #[inline(always)]
     fn approx_sqrt(self) -> Self {
-        approx_sqrt_f32(self)
+        //approx_sqrt_f32(self) //slower
+        self.sqrt()
     }
 
     #[inline(always)]
     fn approx_cbrt(self) -> Self {
-        approx_cbrt_f32(self)
+        approx_cbrt_f32(self) //faster
     }
 
     #[inline(always)]
     fn approx_sin(self) -> Self {
-        approx_sin_f32(self)
+        approx_sin_f32(self) // faster
     }
 
     #[inline(always)]
     fn approx_cos(self) -> Self {
-        approx_cos_f32(self)
+        approx_cos_f32(self) //faster
     }
 
     #[inline(always)]
     fn approx_inv(self) -> Self {
-        approx_inv_f32(self)
+        //approx_inv_f32(self) //slower
+        1.0 / self
     }
 
     #[inline(always)]
     fn approx_powi(self, n: i32) -> Self {
-        approx_powi_f32(self, n)
+        //approx_powi_f32(self, n) //slower
+        self.powi(n)
     }
 
     #[inline(always)]
     fn approx_powf(self, y: Self) -> Self {
-        approx_powf_f32(self, y)
+        //approx_powf_f32(self, y) //slower
+        self.powf(y)
     }
 }
 
 impl FastFloatFnHaver for f64 {
     #[inline(always)]
     fn fast_mul2(self) -> Self {
-        fast_mul2_f64(self)
+        fast_mul2_f64(self) // faster
     }
 
     #[inline(always)]
     fn fast_div2(self) -> Self {
-        fast_div2_f64(self)
+        fast_div2_f64(self) // slightly faster on average but less consistent
     }
 
     #[inline(always)]
     fn fast_mul3(self) -> Self {
-        fast_mul3_f64(self)
+        //fast_mul3_f64(self) //Slower on average but more consistent
+        self * 3.0
     }
 
     #[inline(always)]
     fn fast_mul4(self) -> Self {
-        fast_mul4_f64(self)
+        fast_mul4_f64(self) // faster
     }
 
     #[inline(always)]
     fn fast_mul8(self) -> Self {
-        fast_mul8_f64(self)
+        fast_mul8_f64(self) // slightly faster
     }
 
     #[inline(always)]
     fn approx_exp(self) -> Self {
-        approx_exp_f64(self)
+        //approx_exp_f64(self) //slower
+        self.exp()
     }
 
     #[inline(always)]
     fn approx_ln(self) -> Self {
-        approx_ln_f64(self)
+        approx_ln_f64(self) // much faster
     }
 
     #[inline(always)]
     fn approx_sqrt(self) -> Self {
-        approx_sqrt_f64(self)
+        approx_sqrt_f64(self) //faster
     }
 
     #[inline(always)]
     fn approx_cbrt(self) -> Self {
-        approx_cbrt_f64(self)
+        approx_cbrt_f64(self) // much faster
     }
 
     #[inline(always)]
     fn approx_sin(self) -> Self {
-        approx_sin_f64(self)
+        approx_sin_f64(self) // faster
     }
 
     #[inline(always)]
     fn approx_cos(self) -> Self {
-        approx_cos_f64(self)
+        approx_cos_f64(self) // much faster
     }
 
     #[inline(always)]
     fn approx_inv(self) -> Self {
-        approx_inv_f64(self)
+        //approx_inv_f64(self) //slower
+        1.0 / self
     }
 
     #[inline(always)]
     fn approx_powi(self, n: i32) -> Self {
-        approx_powi_f64(self, n)
+        //approx_powi_f64(self, n) //slower
+        self.powi(n)
     }
 
     #[inline(always)]
     fn approx_powf(self, y: Self) -> Self {
-        approx_powf_f64(self, y)
+        approx_powf_f64(self, y) // much faster
     }
 }
 
 #[inline(always)]
-pub fn fast_mul2_f32(x: f32) -> f32 {
+pub(crate) fn fast_mul2_f32(x: f32) -> f32 {
     const ONEEXP: u32 = 1 << 23;
     f32::from_bits(x.to_bits().saturating_add(ONEEXP))
 }
 
 #[inline(always)]
-pub fn fast_div2_f32(x: f32) -> f32 {
+pub(crate) fn fast_div2_f32(x: f32) -> f32 {
     const ONEEXP: u32 = 1 << 23;
     f32::from_bits(x.to_bits().saturating_sub(ONEEXP))
 }
 
 #[inline(always)]
-pub fn fast_mul2_f64(x: f64) -> f64 {
+pub(crate) fn fast_mul2_f64(x: f64) -> f64 {
     const ONEEXP: u64 = 1 << 52;
     f64::from_bits(x.to_bits().saturating_add(ONEEXP))
 }
 
 #[inline(always)]
-pub fn fast_div2_f64(x: f64) -> f64 {
+pub(crate) fn fast_div2_f64(x: f64) -> f64 {
     const ONEEXP: u64 = 1 << 52;
     f64::from_bits(x.to_bits().saturating_sub(ONEEXP))
 }
 
 #[inline(always)]
-pub fn fast_mul3_f64(x: f64) -> f64 {
+pub(crate) fn fast_mul3_f64(x: f64) -> f64 {
     fast_mul2_f64(x) + x
 }
 
 #[inline(always)]
-pub fn fast_mul4_f32(x: f32) -> f32 {
+pub(crate) fn fast_mul4_f32(x: f32) -> f32 {
     const TWOEXP: u32 = 2 << 23;
     f32::from_bits(x.to_bits().saturating_add(TWOEXP))
 }
 
 #[inline(always)]
-pub fn fast_mul4_f64(x: f64) -> f64 {
+pub(crate) fn fast_mul4_f64(x: f64) -> f64 {
     const TWOEXP: u64 = 2 << 52;
     f64::from_bits(x.to_bits().saturating_add(TWOEXP))
 }
 
 #[inline(always)]
-pub fn fast_mul8_f32(x: f32) -> f32 {
+pub(crate) fn fast_mul8_f32(x: f32) -> f32 {
     const THREEEXP: u32 = 3 << 23;
     f32::from_bits(x.to_bits().saturating_add(THREEEXP))
 }
 
 #[inline(always)]
-pub fn fast_mul8_f64(x: f64) -> f64 {
+pub(crate) fn fast_mul8_f64(x: f64) -> f64 {
     const THREEEXP: u64 = 3 << 52;
     f64::from_bits(x.to_bits().saturating_add(THREEEXP))
 }
 
 #[inline(always)]
-pub fn fast_mul3_f32(x: f32) -> f32 {
+pub(crate) fn fast_mul3_f32(x: f32) -> f32 {
     fast_mul2_f32(x) + x
 }
 
@@ -229,7 +241,7 @@ pub fn fast_mul3_f32(x: f32) -> f32 {
 /// both handled branchlessly.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.047%
-pub fn approx_exp_f32(x: f32) -> f32 {
+pub(crate) fn approx_exp_f32(x: f32) -> f32 {
     let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
     let xgeqz: u32 = ((x >= 0.0) as u32).wrapping_neg();
     let is_inf: u32 = ((x > 88.72283) as u32).wrapping_neg();
@@ -273,7 +285,7 @@ pub fn approx_exp_f32(x: f32) -> f32 {
 /// both handled branchlessly.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.047%
-pub fn approx_exp_f64(x: f64) -> f64 {
+pub(crate) fn approx_exp_f64(x: f64) -> f64 {
     let xltz: u64 = ((x < 0.0) as u64).wrapping_neg();
     let xgeqz: u64 = ((x >= 0.0) as u64).wrapping_neg();
     let is_inf: u64 = ((x > 709.782712893384) as u64).wrapping_neg();
@@ -319,7 +331,7 @@ pub fn approx_exp_f64(x: f64) -> f64 {
 /// on `[1, 2]` and combines via `ln(x) = e·ln2 + ln(m)`.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.929%
-pub fn approx_ln_f32(x: f32) -> f32 {
+pub(crate) fn approx_ln_f32(x: f32) -> f32 {
     const ONE_THIRD: f32 = 1.0 / 3.0;
     let bits = x.to_bits();
     let exponent = ((bits >> 23) as i32 - 127) as f32;
@@ -344,7 +356,7 @@ pub fn approx_ln_f32(x: f32) -> f32 {
 /// on `[1, 2]` and combines via `ln(x) = e·ln2 + ln(m)`.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.929%
-pub fn approx_ln_f64(x: f64) -> f64 {
+pub(crate) fn approx_ln_f64(x: f64) -> f64 {
     const ONE_THIRD: f64 = 1.0 / 3.0;
     let bits = x.to_bits();
     let exponent = ((bits >> 52) as i64 - 1023) as f64;
@@ -366,7 +378,7 @@ pub fn approx_ln_f64(x: f64) -> f64 {
 /// then refines with one Newton-Raphson (Babylonian) step: `0.5*(g + x/g)`.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.093%
-pub fn approx_sqrt_f32(x: f32) -> f32 {
+pub(crate) fn approx_sqrt_f32(x: f32) -> f32 {
     let guess = f32::from_bits((x.to_bits() >> 1) + 0x1fbb4000);
     0.5 * (guess + x / guess)
 }
@@ -378,7 +390,7 @@ pub fn approx_sqrt_f32(x: f32) -> f32 {
 /// one Newton-Raphson step, and preserves the sign of `x` via bit mask.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.098%
-pub fn approx_cbrt_f32(x: f32) -> f32 {
+pub(crate) fn approx_cbrt_f32(x: f32) -> f32 {
     let sign = x.to_bits() & 0x80000000;
     let abs_x = f32::from_bits(x.to_bits() & 0x7FFFFFFF);
     let guess = f32::from_bits(abs_x.to_bits() / 3 + 0x2a514067);
@@ -395,7 +407,7 @@ pub fn approx_cbrt_f32(x: f32) -> f32 {
 ///
 /// **Measured absolute error (over a representative sample):** 0.0 – 0.693%
 /// (absolute; output range is [−1, 1])
-pub fn approx_sin_f32(x: f32) -> f32 {
+pub(crate) fn approx_sin_f32(x: f32) -> f32 {
     const INV_2PI: f32 = 0.15915494; // 1 / (2 * PI)
     const TWO_PI: f32 = 6.2831855;
 
@@ -419,7 +431,7 @@ pub fn approx_sin_f32(x: f32) -> f32 {
 ///
 /// **Measured absolute error (over a representative sample):** 0.0 – 2.40%
 /// (absolute; output range is [−1, 1])
-pub fn approx_cos_f32(x: f32) -> f32 {
+pub(crate) fn approx_cos_f32(x: f32) -> f32 {
     const TWO_PI: f32 = std::f32::consts::PI * 2.0;
     const INV_2PI: f32 = 1.0 / TWO_PI;
 
@@ -443,7 +455,7 @@ pub fn approx_cos_f32(x: f32) -> f32 {
 ///
 /// Error characteristics are comparable to the f32 version.
 /// **Measured relative error (over a representative sample):** 0.0% – 0.093%
-pub fn approx_sqrt_f64(x: f64) -> f64 {
+pub(crate) fn approx_sqrt_f64(x: f64) -> f64 {
     let guess = f64::from_bits((x.to_bits() >> 1) + 0x1FF7A00000000000);
     0.5 * (guess + x / guess)
 }
@@ -456,7 +468,7 @@ pub fn approx_sqrt_f64(x: f64) -> f64 {
 ///
 /// Error characteristics are comparable to the f32 version.
 /// **Measured relative error (over a representative sample):** 0.0% – 0.098%
-pub fn approx_cbrt_f64(x: f64) -> f64 {
+pub(crate) fn approx_cbrt_f64(x: f64) -> f64 {
     let sign = x.to_bits() & 0x8000000000000000;
     let abs_x = f64::from_bits(x.to_bits() & 0x7FFFFFFFFFFFFFFF);
     let guess = f64::from_bits(abs_x.to_bits() / 3 + 0x2A9F789300000000);
@@ -473,7 +485,7 @@ pub fn approx_cbrt_f64(x: f64) -> f64 {
 ///
 /// **Measured absolute error (over a representative sample):** 0.0 – 0.693%
 /// (absolute; output range is [−1, 1])
-pub fn approx_sin_f64(x: f64) -> f64 {
+pub(crate) fn approx_sin_f64(x: f64) -> f64 {
     const INV_2PI: f64 = 0.15915494309189535; // 1 / (2 * PI)
     const TWO_PI: f64 = 6.283185307179586;
 
@@ -498,7 +510,7 @@ pub fn approx_sin_f64(x: f64) -> f64 {
 ///
 /// **Measured absolute error (over a representative sample):** 0.0 – 2.40%
 /// (absolute; output range is [−1, 1])
-pub fn approx_cos_f64(x: f64) -> f64 {
+pub(crate) fn approx_cos_f64(x: f64) -> f64 {
     const TWO_PI: f64 = std::f64::consts::PI * 2.0;
     const INV_2PI: f64 = 1.0 / TWO_PI;
     let k = (x * INV_2PI).round();
@@ -523,7 +535,7 @@ pub fn approx_cos_f64(x: f64) -> f64 {
 /// `y₁ = y₀·(2 − x·y₀)`.
 ///
 /// **Measured relative error (over a representative sample):** 0.045% – 0.34%
-pub fn approx_inv_f32(x: f32) -> f32 {
+pub(crate) fn approx_inv_f32(x: f32) -> f32 {
     // Bit-magic seed: interpret bits as y₀ ≈ 1/x
     let y0 = f32::from_bits(0x7EF127EA_u32.wrapping_sub(x.to_bits()));
     // One Newton-Raphson step
@@ -538,7 +550,7 @@ pub fn approx_inv_f32(x: f32) -> f32 {
 /// the f32 variant.
 ///
 /// **Measured relative error (over a representative sample):** 8.8×10⁻⁵% – 6.5×10⁻⁴%
-pub fn approx_inv_f64(x: f64) -> f64 {
+pub(crate) fn approx_inv_f64(x: f64) -> f64 {
     // Bit-magic seed adapted for f64 biases
     let y0 = f64::from_bits(0x7FDE623822835EEA_u64.wrapping_sub(x.to_bits()));
     // Two Newton-Raphson steps
@@ -555,7 +567,7 @@ pub fn approx_inv_f64(x: f64) -> f64 {
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 6.5×10⁻⁴%
 /// (positive n; negative n adds `approx_inv_f32` error: up to 0.34%)
-pub fn approx_powi_f32(x: f32, n: i32) -> f32 {
+pub(crate) fn approx_powi_f32(x: f32, n: i32) -> f32 {
     let nz: u32 = ((n == 0) as u32).wrapping_neg();
     let nltz: u32 = ((n < 0) as u32).wrapping_neg();
 
@@ -586,7 +598,7 @@ pub fn approx_powi_f32(x: f32, n: i32) -> f32 {
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 6.5×10⁻⁴%
 /// (positive n; negative n adds `approx_inv_f64` error: up to 6.5×10⁻⁴%)
-pub fn approx_powi_f64(x: f64, n: i32) -> f64 {
+pub(crate) fn approx_powi_f64(x: f64, n: i32) -> f64 {
     let nz: u64 = ((n == 0) as u64).wrapping_neg();
     let nltz: u64 = ((n < 0) as u64).wrapping_neg();
 
@@ -615,7 +627,7 @@ pub fn approx_powi_f64(x: f64, n: i32) -> f64 {
 /// functions accumulate.  Only valid for positive `x`.
 ///
 /// **Measured relative error (over a representative sample):** 5.7×10⁻⁸% – 3.58%
-pub fn approx_powf_f32(x: f32, y: f32) -> f32 {
+pub(crate) fn approx_powf_f32(x: f32, y: f32) -> f32 {
     approx_exp_f32(y * approx_ln_f32(x))
 }
 
@@ -626,7 +638,7 @@ pub fn approx_powf_f32(x: f32, y: f32) -> f32 {
 /// functions accumulate.  Only valid for positive `x`.
 ///
 /// **Measured relative error (over a representative sample):** 5.7×10⁻⁸% – 3.58%
-pub fn approx_powf_f64(x: f64, y: f64) -> f64 {
+pub(crate) fn approx_powf_f64(x: f64, y: f64) -> f64 {
     approx_exp_f64(y * approx_ln_f64(x))
 }
 
