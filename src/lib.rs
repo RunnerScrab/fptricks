@@ -19,116 +19,144 @@ pub trait FastFloatFnHaver {
 }
 
 impl FastFloatFnHaver for f32 {
+    #[inline(always)]
     fn fast_mul2(self) -> Self {
         fast_mul2_f32(self)
     }
 
+    #[inline(always)]
     fn fast_div2(self) -> Self {
         fast_div2_f32(self)
     }
 
+    #[inline(always)]
     fn fast_mul3(self) -> Self {
         fast_mul3_f32(self)
     }
 
+    #[inline(always)]
     fn fast_mul4(self) -> Self {
         fast_mul4_f32(self)
     }
 
+    #[inline(always)]
     fn fast_mul8(self) -> Self {
         fast_mul8_f32(self)
     }
 
+    #[inline(always)]
     fn approx_exp(self) -> Self {
         approx_exp_f32(self)
     }
 
+    #[inline(always)]
     fn approx_ln(self) -> Self {
         approx_ln_f32(self)
     }
 
+    #[inline(always)]
     fn approx_sqrt(self) -> Self {
         approx_sqrt_f32(self)
     }
 
+    #[inline(always)]
     fn approx_cbrt(self) -> Self {
         approx_cbrt_f32(self)
     }
 
+    #[inline(always)]
     fn approx_sin(self) -> Self {
         approx_sin_f32(self)
     }
 
+    #[inline(always)]
     fn approx_cos(self) -> Self {
         approx_cos_f32(self)
     }
 
+    #[inline(always)]
     fn approx_inv(self) -> Self {
         approx_inv_f32(self)
     }
 
+    #[inline(always)]
     fn approx_powi(self, n: i32) -> Self {
         approx_powi_f32(self, n)
     }
 
+    #[inline(always)]
     fn approx_powf(self, y: Self) -> Self {
         approx_powf_f32(self, y)
     }
 }
 
 impl FastFloatFnHaver for f64 {
+    #[inline(always)]
     fn fast_mul2(self) -> Self {
         fast_mul2_f64(self)
     }
 
+    #[inline(always)]
     fn fast_div2(self) -> Self {
         fast_div2_f64(self)
     }
 
+    #[inline(always)]
     fn fast_mul3(self) -> Self {
         fast_mul3_f64(self)
     }
 
+    #[inline(always)]
     fn fast_mul4(self) -> Self {
         fast_mul4_f64(self)
     }
 
+    #[inline(always)]
     fn fast_mul8(self) -> Self {
         fast_mul8_f64(self)
     }
 
+    #[inline(always)]
     fn approx_exp(self) -> Self {
         approx_exp_f64(self)
     }
 
+    #[inline(always)]
     fn approx_ln(self) -> Self {
         approx_ln_f64(self)
     }
 
+    #[inline(always)]
     fn approx_sqrt(self) -> Self {
         approx_sqrt_f64(self)
     }
 
+    #[inline(always)]
     fn approx_cbrt(self) -> Self {
         approx_cbrt_f64(self)
     }
 
+    #[inline(always)]
     fn approx_sin(self) -> Self {
         approx_sin_f64(self)
     }
 
+    #[inline(always)]
     fn approx_cos(self) -> Self {
         approx_cos_f64(self)
     }
 
+    #[inline(always)]
     fn approx_inv(self) -> Self {
         approx_inv_f64(self)
     }
 
+    #[inline(always)]
     fn approx_powi(self, n: i32) -> Self {
         approx_powi_f64(self, n)
     }
 
+    #[inline(always)]
     fn approx_powf(self, y: Self) -> Self {
         approx_powf_f64(self, y)
     }
@@ -621,7 +649,11 @@ mod tests {
             let r_sqrt = val.approx_sqrt();
             let exact_sqrt = val.sqrt();
             let err_sqrt = (r_sqrt - exact_sqrt).abs();
-            let rel_sqrt = if exact_sqrt > 0.0 { err_sqrt / exact_sqrt } else { err_sqrt };
+            let rel_sqrt = if exact_sqrt > 0.0 {
+                err_sqrt / exact_sqrt
+            } else {
+                err_sqrt
+            };
             log::debug!(
                 "sqrt({val}): approx={r_sqrt} exact={exact_sqrt} abs_err={err_sqrt:.6e} rel_err={rel_sqrt:.6e}"
             );
@@ -630,13 +662,18 @@ mod tests {
             assert!(
                 err_sqrt < 0.1 * exact_sqrt || err_sqrt < 0.01,
                 "sqrt error too high: {} != {}",
-                r_sqrt, exact_sqrt
+                r_sqrt,
+                exact_sqrt
             );
 
             let r_cbrt = val.approx_cbrt();
             let exact_cbrt = val.cbrt();
             let err_cbrt = (r_cbrt - exact_cbrt).abs();
-            let rel_cbrt = if exact_cbrt > 0.0 { err_cbrt / exact_cbrt } else { err_cbrt };
+            let rel_cbrt = if exact_cbrt > 0.0 {
+                err_cbrt / exact_cbrt
+            } else {
+                err_cbrt
+            };
             log::debug!(
                 "cbrt({val}): approx={r_cbrt} exact={exact_cbrt} abs_err={err_cbrt:.6e} rel_err={rel_cbrt:.6e}"
             );
@@ -645,14 +682,21 @@ mod tests {
             assert!(
                 err_cbrt < 0.08 * exact_cbrt || err_cbrt < 0.08,
                 "cbrt error too high: {} != {}",
-                r_cbrt, exact_cbrt
+                r_cbrt,
+                exact_cbrt
             );
         }
         log::info!("approx_sqrt  rel_err range: best={sqrt_min:.6e}  worst={sqrt_max:.6e}");
         log::info!("approx_cbrt  rel_err range: best={cbrt_min:.6e}  worst={cbrt_max:.6e}");
 
         let angles = [
-            -10.0, -std::f64::consts::PI, -1.0, 0.0, 1.0, std::f64::consts::PI, 10.0,
+            -10.0,
+            -std::f64::consts::PI,
+            -1.0,
+            0.0,
+            1.0,
+            std::f64::consts::PI,
+            10.0,
         ];
         let (mut sin_min, mut sin_max) = (f64::MAX, 0.0_f64);
         let (mut cos_min, mut cos_max) = (f64::MAX, 0.0_f64);
@@ -663,7 +707,12 @@ mod tests {
             log::debug!("sin({angle}): approx={r_sin} exact={exact_sin} abs_err={err_sin:.6e}");
             sin_min = sin_min.min(err_sin);
             sin_max = sin_max.max(err_sin);
-            assert!(err_sin < 0.08, "sin error too high: {} != {}", r_sin, exact_sin);
+            assert!(
+                err_sin < 0.08,
+                "sin error too high: {} != {}",
+                r_sin,
+                exact_sin
+            );
 
             let r_cos = angle.approx_cos();
             let exact_cos = angle.cos();
@@ -671,7 +720,12 @@ mod tests {
             log::debug!("cos({angle}): approx={r_cos} exact={exact_cos} abs_err={err_cos:.6e}");
             cos_min = cos_min.min(err_cos);
             cos_max = cos_max.max(err_cos);
-            assert!(err_cos < 0.08, "cos error too high: {} != {}", r_cos, exact_cos);
+            assert!(
+                err_cos < 0.08,
+                "cos error too high: {} != {}",
+                r_cos,
+                exact_cos
+            );
         }
         log::info!("approx_sin   abs_err range: best={sin_min:.6e}  worst={sin_max:.6e}");
         log::info!("approx_cos   abs_err range: best={cos_min:.6e}  worst={cos_max:.6e}");
@@ -691,7 +745,10 @@ mod tests {
             assert!(
                 rel_err < 0.001,
                 "inv relative error too high for {}: approx={} exact={} rel_err={}",
-                v, approx, exact, rel_err
+                v,
+                approx,
+                exact,
+                rel_err
             );
         }
         log::info!("approx_inv_f64 rel_err range: best={inv64_min:.6e}  worst={inv64_max:.6e}");
@@ -707,7 +764,10 @@ mod tests {
             assert!(
                 rel_err < 0.005,
                 "f32 inv relative error too high for {}: approx={} exact={} rel_err={}",
-                v, approx, exact, rel_err
+                v,
+                approx,
+                exact,
+                rel_err
             );
         }
         log::info!("approx_inv_f32 rel_err range: best={inv32_min:.6e}  worst={inv32_max:.6e}");
@@ -739,7 +799,11 @@ mod tests {
             assert!(
                 rel_err < 0.001,
                 "powi relative error too high for {}^{}: approx={} exact={} rel_err={}",
-                base, exp, approx, exact, rel_err
+                base,
+                exp,
+                approx,
+                exact,
+                rel_err
             );
         }
         log::info!("approx_powi_f64 rel_err range: best={powi_min:.6e}  worst={powi_max:.6e}");
@@ -770,7 +834,11 @@ mod tests {
             assert!(
                 rel_err < 0.05,
                 "powf relative error too high for {}^{}: approx={} exact={} rel_err={}",
-                base, exp, approx, exact, rel_err
+                base,
+                exp,
+                approx,
+                exact,
+                rel_err
             );
         }
         log::info!("approx_powf_f64 rel_err range: best={powf_min:.6e}  worst={powf_max:.6e}");
@@ -895,7 +963,11 @@ mod tests {
         for &(x, exact) in cases_f64 {
             let approx = approx_ln_f64(x);
             let abs_err = (approx - exact).abs();
-            let rel_err = if exact.abs() > 0.1 { abs_err / exact.abs() } else { abs_err };
+            let rel_err = if exact.abs() > 0.1 {
+                abs_err / exact.abs()
+            } else {
+                abs_err
+            };
             log::debug!(
                 "ln_f64({x}): approx={approx} exact={exact} abs_err={abs_err:.6e} rel_err={rel_err:.6e}"
             );
@@ -917,7 +989,11 @@ mod tests {
         for &(x, exact) in cases_f32 {
             let approx = approx_ln_f32(x);
             let abs_err = (approx - exact).abs();
-            let rel_err = if exact.abs() > 0.1 { abs_err / exact.abs() } else { abs_err };
+            let rel_err = if exact.abs() > 0.1 {
+                abs_err / exact.abs()
+            } else {
+                abs_err
+            };
             log::debug!(
                 "ln_f32({x}): approx={approx} exact={exact} abs_err={abs_err:.6e} rel_err={rel_err:.6e}"
             );
