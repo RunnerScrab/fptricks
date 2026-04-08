@@ -1,3 +1,6 @@
+mod batch;
+pub use batch::*;
+
 pub trait FastFloatFnHaver: Sized {
     fn fast_mul2(self) -> Self;
     fn fast_div2(self) -> Self;
