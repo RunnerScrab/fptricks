@@ -1,4 +1,4 @@
-pub trait FastFloatFnHaver {
+pub trait FastFloatFnHaver: Sized {
     fn fast_mul2(self) -> Self;
     fn fast_div2(self) -> Self;
     fn fast_mul3(self) -> Self;
@@ -11,6 +11,7 @@ pub trait FastFloatFnHaver {
     fn approx_cbrt(self) -> Self;
     fn approx_sin(self) -> Self;
     fn approx_cos(self) -> Self;
+    fn approx_sin_cos(self) -> (Self, Self);
     fn approx_inv(self) -> Self;
     ///Worse in all cases
     fn approx_powi(self, n: i32) -> Self;
@@ -77,6 +78,11 @@ impl FastFloatFnHaver for f32 {
     #[inline(always)]
     fn approx_cos(self) -> Self {
         approx_cos_f32(self) //faster
+    }
+
+    #[inline(always)]
+    fn approx_sin_cos(self) -> (Self, Self) {
+        approx_sin_cos_f32(self)
     }
 
     #[inline(always)]
@@ -154,6 +160,11 @@ impl FastFloatFnHaver for f64 {
     #[inline(always)]
     fn approx_cos(self) -> Self {
         approx_cos_f64(self) // much faster
+    }
+
+    #[inline(always)]
+    fn approx_sin_cos(self) -> (Self, Self) {
+        approx_sin_cos_f64(self)
     }
 
     #[inline(always)]
@@ -448,6 +459,57 @@ pub(crate) fn approx_cos_f32(x: f32) -> f32 {
 }
 
 #[inline(always)]
+/// Approximates both sin(x) and cos(x) for f32.
+///
+/// Reuses range reduction and `x²` calculation to provide both results
+/// more efficiently than calling them separately.
+pub(crate) fn approx_sin_cos_f32(x: f32) -> (f32, f32) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let x_red = {
+            const TWO_PI: f32 = std::f32::consts::PI * 2.0;
+            const INV_2PI: f32 = 1.0 / TWO_PI;
+            let k = (x * INV_2PI).round();
+            k.mul_add(-TWO_PI, x)
+        };
+        let x2 = x_red * x_red;
+        let v_x2 = _mm_set1_ps(x2);
+
+        // Constants: Lane 0 = cos, Lane 1 = sin
+        let mut v = _mm_set_ps(0.0, 0.0, -0.00019841270, -0.0013888889);
+        v = _mm_fmadd_ps(v, v_x2, _mm_set_ps(0.0, 0.0, 0.008333333, 0.041666668));
+        v = _mm_fmadd_ps(v, v_x2, _mm_set_ps(0.0, 0.0, -0.16666667, -0.5));
+        v = _mm_fmadd_ps(v, v_x2, _mm_set_ps(0.0, 0.0, 1.0, 1.0));
+
+        let mut res = [0.0f32; 4];
+        _mm_storeu_ps(res.as_mut_ptr(), v);
+        (x_red * res[1], res[0])
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "fma")))]
+    {
+        const TWO_PI: f32 = std::f32::consts::PI * 2.0;
+        const INV_2PI: f32 = 1.0 / TWO_PI;
+
+        let k = (x * INV_2PI).round();
+        let x_red = k.mul_add(-TWO_PI, x);
+        let x2 = x_red * x_red;
+
+        let s = x_red * (-0.00019841270_f32)
+            .mul_add(x2, 0.008333333)
+            .mul_add(x2, -0.16666667)
+            .mul_add(x2, 1.0);
+
+        let c = (-0.0013888889_f32)
+            .mul_add(x2, 0.041666668)
+            .mul_add(x2, -0.5)
+            .mul_add(x2, 1.0);
+
+        (s, c)
+    }
+}
+
+#[inline(always)]
 /// Approximates √x for f64.
 ///
 /// Seeds a bit-manipulation initial guess (`bits >> 1` with a magic offset),
@@ -525,6 +587,60 @@ pub(crate) fn approx_cos_f64(x: f64) -> f64 {
         .mul_add(x2, 4.166666666666667e-2)
         .mul_add(x2, -5.0e-1)
         .mul_add(x2, 1.0)
+}
+
+#[inline(always)]
+/// Approximates both sin(x) and cos(x) for f64.
+///
+/// Reuses range reduction and `x²` calculation to provide both results
+/// more efficiently than calling them separately.
+pub(crate) fn approx_sin_cos_f64(x: f64) -> (f64, f64) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let x_red = {
+            const TWO_PI: f64 = std::f64::consts::PI * 2.0;
+            const INV_2PI: f64 = 1.0 / TWO_PI;
+            let k = (x * INV_2PI).round();
+            k.mul_add(-TWO_PI, x)
+        };
+        let x2 = x_red * x_red;
+        let v_x2 = _mm_set1_pd(x2);
+
+        // Constants: Lane 0 = cos, Lane 1 = sin
+        let mut v = _mm_set_pd(2.75573192239858906e-6, 2.48015873015873e-5);
+        v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(-1.984126984126984e-4, -1.388888888888889e-3));
+        v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(8.333333333333333e-3, 4.166666666666667e-2));
+        v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(-1.666666666666667e-1, -5.0e-1));
+        v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(1.0, 1.0));
+
+        let mut res = [0.0f64; 2];
+        _mm_storeu_pd(res.as_mut_ptr(), v);
+        (x_red * res[1], res[0])
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "fma")))]
+    {
+        const TWO_PI: f64 = std::f64::consts::PI * 2.0;
+        const INV_2PI: f64 = 1.0 / TWO_PI;
+
+        let k = (x * INV_2PI).round();
+        let x_red = k.mul_add(-TWO_PI, x);
+        let x2 = x_red * x_red;
+
+        let s = x_red * 2.75573192239858906e-6_f64
+            .mul_add(x2, -1.984126984126984e-4)
+            .mul_add(x2, 8.333333333333333e-3)
+            .mul_add(x2, -1.666666666666667e-1)
+            .mul_add(x2, 1.0);
+
+        let c = 2.48015873015873e-5_f64
+            .mul_add(x2, -1.388888888888889e-3)
+            .mul_add(x2, 4.166666666666667e-2)
+            .mul_add(x2, -5.0e-1)
+            .mul_add(x2, 1.0);
+
+        (s, c)
+    }
 }
 
 #[inline(always)]
@@ -737,6 +853,20 @@ mod tests {
                 "cos error too high: {} != {}",
                 r_cos,
                 exact_cos
+            );
+
+            let (r_sin_sc, r_cos_sc) = angle.approx_sin_cos();
+            assert!(
+                (r_sin_sc - r_sin).abs() < 1e-6,
+                "sin_cos sin mismatch: {} != {}",
+                r_sin_sc,
+                r_sin
+            );
+            assert!(
+                (r_cos_sc - r_cos).abs() < 1e-6,
+                "sin_cos cos mismatch: {} != {}",
+                r_cos_sc,
+                r_cos
             );
         }
         log::info!("approx_sin   abs_err range: best={sin_min:.6e}  worst={sin_max:.6e}");

@@ -43,6 +43,15 @@ fn bench_f32(c: &mut Criterion) {
     group.bench_function("cos_std", |b| b.iter(|| black_box(val).cos()));
     group.bench_function("cos_fast", |b| b.iter(|| black_box(val).approx_cos()));
 
+    group.bench_function("sin_cos_std", |b| b.iter(|| black_box(val).sin_cos()));
+    group.bench_function("sin_cos_fast", |b| b.iter(|| black_box(val).approx_sin_cos()));
+    group.bench_function("sin_cos_fast_sep", |b| {
+        b.iter(|| {
+            let v = black_box(val);
+            (v.approx_sin(), v.approx_cos())
+        })
+    });
+
     // Inverse
     group.bench_function("inv_std", |b| b.iter(|| 1.0 / black_box(val)));
     group.bench_function("inv_fast", |b| b.iter(|| black_box(val).approx_inv()));
@@ -99,6 +108,15 @@ fn bench_f64(c: &mut Criterion) {
 
     group.bench_function("cos_std", |b| b.iter(|| black_box(val).cos()));
     group.bench_function("cos_fast", |b| b.iter(|| black_box(val).approx_cos()));
+
+    group.bench_function("sin_cos_std", |b| b.iter(|| black_box(val).sin_cos()));
+    group.bench_function("sin_cos_fast", |b| b.iter(|| black_box(val).approx_sin_cos()));
+    group.bench_function("sin_cos_fast_sep", |b| {
+        b.iter(|| {
+            let v = black_box(val);
+            (v.approx_sin(), v.approx_cos())
+        })
+    });
 
     // Inverse
     group.bench_function("inv_std", |b| b.iter(|| 1.0 / black_box(val)));
