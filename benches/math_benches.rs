@@ -339,9 +339,31 @@ fn bench_batch_f64(c: &mut Criterion) {
         }
         out
     }));
+    group.finish();
+}
+
+fn bench_sum(c: &mut Criterion) {
+    let data_f32: Vec<f32> = (0..1024).map(|i| i as f32 * 0.001).collect();
+    let data_f64: Vec<f64> = (0..1024).map(|i| i as f64 * 0.001).collect();
+    let data_i32: Vec<i32> = (0..1024).map(|i| i as i32).collect();
+    let data_i64: Vec<i64> = (0..1024).map(|i| i as i64).collect();
+
+    let mut group = c.benchmark_group("sum");
+
+    group.bench_function("f32_batch", |b| b.iter(|| batch_sum_f32(black_box(&data_f32))));
+    group.bench_function("f32_scalar", |b| b.iter(|| black_box(&data_f32).iter().sum::<f32>()));
+
+    group.bench_function("f64_batch", |b| b.iter(|| batch_sum_f64(black_box(&data_f64))));
+    group.bench_function("f64_scalar", |b| b.iter(|| black_box(&data_f64).iter().sum::<f64>()));
+
+    group.bench_function("i32_batch", |b| b.iter(|| batch_sum_i32(black_box(&data_i32))));
+    group.bench_function("i32_scalar", |b| b.iter(|| black_box(&data_i32).iter().fold(0i32, |acc, &x| acc.wrapping_add(x))));
+
+    group.bench_function("i64_batch", |b| b.iter(|| batch_sum_i64(black_box(&data_i64))));
+    group.bench_function("i64_scalar", |b| b.iter(|| black_box(&data_i64).iter().sum::<i64>()));
 
     group.finish();
 }
 
-criterion_group!(benches, bench_f32, bench_f64, bench_batch_f32, bench_batch_f64);
+criterion_group!(benches, bench_f32, bench_f64, bench_batch_f32, bench_batch_f64, bench_sum);
 criterion_main!(benches);
