@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fptricks::FastFloatFnHaver;
+use fptricks::*;
 
 fn bench_f32(c: &mut Criterion) {
     let mut group = c.benchmark_group("f32");
@@ -133,5 +133,61 @@ fn bench_f64(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_f32, bench_f64);
+fn bench_batch_f32(c: &mut Criterion) {
+    let mut group = c.benchmark_group("batch_f32");
+    let x = [1.23456f32; 8];
+    let y = [2.5f32; 8];
+    let n = [5i32; 8];
+
+    group.bench_function("ln_batch", |b| b.iter(|| batch_approx_ln_f32(black_box(x))));
+    group.bench_function("ln_scalar_loop", |b| b.iter(|| {
+        let val = black_box(x);
+        let mut out = [0.0; 8];
+        for i in 0..8 { out[i] = val[i].approx_ln(); }
+        out
+    }));
+
+    group.bench_function("exp_batch", |b| b.iter(|| batch_approx_exp_f32(black_box(x))));
+    group.bench_function("sqrt_batch", |b| b.iter(|| batch_approx_sqrt_f32(black_box(x))));
+    group.bench_function("cbrt_batch", |b| b.iter(|| batch_approx_cbrt_f32(black_box(x))));
+    group.bench_function("sin_cos_batch", |b| b.iter(|| batch_approx_sin_cos_f32(black_box(x))));
+    
+    group.bench_function("powf_cols_batch", |b| b.iter(|| batch_approx_powf_cols_f32(black_box(x), black_box(y))));
+    group.bench_function("powi_cols_batch", |b| b.iter(|| batch_approx_powi_cols_f32(black_box(x), black_box(n))));
+
+    group.bench_function("fmadd_cols_batch", |b| b.iter(|| batch_fmadd_cols_f32(black_box(x), black_box(y), black_box(y))));
+    group.bench_function("asymmetric_fma_cols_batch", |b| b.iter(|| batch_asymmetric_fma_cols_f32(black_box(x), black_box(y), black_box(y), black_box(y))));
+
+    group.finish();
+}
+
+fn bench_batch_f64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("batch_f64");
+    let x = [1.23456f64; 4];
+    let y = [2.5f64; 4];
+    let n = [5i32; 4];
+
+    group.bench_function("ln_batch", |b| b.iter(|| batch_approx_ln_f64(black_box(x))));
+    group.bench_function("ln_scalar_loop", |b| b.iter(|| {
+        let val = black_box(x);
+        let mut out = [0.0; 4];
+        for i in 0..4 { out[i] = val[i].approx_ln(); }
+        out
+    }));
+
+    group.bench_function("exp_batch", |b| b.iter(|| batch_approx_exp_f64(black_box(x))));
+    group.bench_function("sqrt_batch", |b| b.iter(|| batch_approx_sqrt_f64(black_box(x))));
+    group.bench_function("cbrt_batch", |b| b.iter(|| batch_approx_cbrt_f64(black_box(x))));
+    group.bench_function("sin_cos_batch", |b| b.iter(|| batch_approx_sin_cos_f64(black_box(x))));
+
+    group.bench_function("powf_cols_batch", |b| b.iter(|| batch_approx_powf_cols_f64(black_box(x), black_box(y))));
+    group.bench_function("powi_cols_batch", |b| b.iter(|| batch_approx_powi_cols_f64(black_box(x), black_box(n))));
+
+    group.bench_function("fmadd_cols_batch", |b| b.iter(|| batch_fmadd_cols_f64(black_box(x), black_box(y), black_box(y))));
+    group.bench_function("asymmetric_fma_cols_batch", |b| b.iter(|| batch_asymmetric_fma_cols_f64(black_box(x), black_box(y), black_box(y), black_box(y))));
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_f32, bench_f64, bench_batch_f32, bench_batch_f64);
 criterion_main!(benches);

@@ -398,6 +398,343 @@ pub fn batch_approx_powf_f64(x: f64, y: [f64; 4]) -> [f64; 4] {
         for i in 0..4 {
             out[i] = (y[i] * lnx).approx_exp();
         }
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_cbrt_f32(x: [f32; 8]) -> [f32; 8] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_ps(x.as_ptr());
+        let bits = _mm256_castps_si256(v_x);
+        
+        let sign_mask = _mm256_set1_epi32(0x80000000u32 as i32);
+        let abs_mask = _mm256_set1_epi32(0x7FFFFFFFi32);
+        
+        let v_sign = _mm256_and_si256(bits, sign_mask);
+        let v_abs_bits = _mm256_and_si256(bits, abs_mask);
+        
+        // guess = bits / 3 + 0x2a514067
+        // Implementing bits / 3 via scalar or store/load for simplicity on bit-level
+        let mut abs_bits_arr = [0u32; 8];
+        _mm256_storeu_si256(abs_bits_arr.as_mut_ptr() as *mut __m256i, v_abs_bits);
+        for i in 0..8 {
+            abs_bits_arr[i] = abs_bits_arr[i] / 3 + 0x2a514067;
+        }
+        let v_guess = _mm256_castsi256_ps(_mm256_loadu_si256(abs_bits_arr.as_ptr() as *const __m256i));
+        
+        // Newton-Raphson: refined = 0.6666667 * guess + abs_x / (3.0 * guess * guess)
+        let v_abs_x = _mm256_castsi256_ps(v_abs_bits);
+        let g2 = _mm256_mul_ps(v_guess, v_guess);
+        let div = _mm256_div_ps(v_abs_x, _mm256_mul_ps(_mm256_set1_ps(3.0), g2));
+        let refined = _mm256_fmadd_ps(_mm256_set1_ps(0.6666667), v_guess, div);
+        
+        // Restore sign
+        let res_bits = _mm256_or_si256(_mm256_and_si256(_mm256_castps_si256(refined), abs_mask), v_sign);
+        let res = _mm256_castsi256_ps(res_bits);
+
+        let mut out = [0.0; 8];
+        _mm256_storeu_ps(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 8];
+        for i in 0..8 {
+            out[i] = x[i].approx_cbrt();
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_powf_cols_f32(x: [f32; 8], y: [f32; 8]) -> [f32; 8] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let lnx = batch_approx_ln_f32(x);
+        let v_lnx = _mm256_loadu_ps(lnx.as_ptr());
+        let v_y = _mm256_loadu_ps(y.as_ptr());
+        
+        let y_lnx = _mm256_mul_ps(v_y, v_lnx);
+        
+        let mut y_lnx_arr = [0.0; 8];
+        _mm256_storeu_ps(y_lnx_arr.as_mut_ptr(), y_lnx);
+        
+        batch_approx_exp_f32(y_lnx_arr)
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 8];
+        for i in 0..8 {
+            out[i] = x[i].approx_powf(y[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_inv_f32(x: [f32; 8]) -> [f32; 8] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_ps(x.as_ptr());
+        let bits = _mm256_castps_si256(v_x);
+        let magic = _mm256_set1_epi32(0x7EF127EA_u32 as i32);
+        let y0_bits = _mm256_sub_epi32(magic, bits);
+        let v_y0 = _mm256_castsi256_ps(y0_bits);
+        
+        let res = _mm256_mul_ps(v_y0, _mm256_fnmadd_ps(v_x, v_y0, _mm256_set1_ps(2.0)));
+        
+        let mut out = [0.0; 8];
+        _mm256_storeu_ps(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 8];
+        for i in 0..8 {
+            out[i] = x[i].approx_inv();
+        }
+        out
+    }
+}
+
+pub fn batch_approx_inv_f64(x: [f64; 4]) -> [f64; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_pd(x.as_ptr());
+        let bits = _mm256_castpd_si256(v_x);
+        let magic = _mm256_set1_epi64x(0x7FDE623822835EEA_u64 as i64);
+        let y0_bits = _mm256_sub_epi64(magic, bits);
+        let v_y0 = _mm256_castsi256_pd(y0_bits);
+        
+        let two = _mm256_set1_pd(2.0);
+        let v_y1 = _mm256_mul_pd(v_y0, _mm256_fnmadd_pd(v_x, v_y0, two));
+        let res = _mm256_mul_pd(v_y1, _mm256_fnmadd_pd(v_x, v_y1, two));
+        
+        let mut out = [0.0; 4];
+        _mm256_storeu_pd(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].approx_inv();
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_powi_cols_f32(x: [f32; 8], n: [i32; 8]) -> [f32; 8] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut v_base = _mm256_loadu_ps(x.as_ptr());
+        let v_n = _mm256_loadu_si256(n.as_ptr() as *const __m256i);
+        let v_is_neg = _mm256_cmpgt_epi32(_mm256_setzero_si256(), v_n);
+        let v_is_zero = _mm256_cmpeq_epi32(_mm256_setzero_si256(), v_n);
+        
+        let mut v_e = _mm256_abs_epi32(v_n);
+        let mut v_result = _mm256_set1_ps(1.0);
+        
+        for _ in 0..31 {
+            let bit_set = _mm256_cmpeq_epi32(_mm256_and_si256(v_e, _mm256_set1_epi32(1)), _mm256_set1_epi32(1));
+            let v_mul = _mm256_mul_ps(v_result, v_base);
+            v_result = _mm256_blendv_ps(v_result, v_mul, _mm256_castsi256_ps(bit_set));
+            
+            v_base = _mm256_mul_ps(v_base, v_base);
+            v_e = _mm256_srli_epi32(v_e, 1);
+        }
+        
+        let mut res_arr = [0.0; 8];
+        _mm256_storeu_ps(res_arr.as_mut_ptr(), v_result);
+        let res_inv = batch_approx_inv_f32(res_arr);
+        let v_inv = _mm256_loadu_ps(res_inv.as_ptr());
+        
+        v_result = _mm256_blendv_ps(v_result, v_inv, _mm256_castsi256_ps(v_is_neg));
+        v_result = _mm256_blendv_ps(v_result, _mm256_set1_ps(1.0), _mm256_castsi256_ps(v_is_zero));
+
+        let mut out = [0.0; 8];
+        _mm256_storeu_ps(out.as_mut_ptr(), v_result);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 8];
+        for i in 0..8 {
+            out[i] = x[i].approx_powi(n[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_fmadd_cols_f32(x: [f32; 8], m: [f32; 8], a: [f32; 8]) -> [f32; 8] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_ps(x.as_ptr());
+        let v_m = _mm256_loadu_ps(m.as_ptr());
+        let v_a = _mm256_loadu_ps(a.as_ptr());
+        let res = _mm256_fmadd_ps(v_x, v_m, v_a);
+        let mut out = [0.0; 8];
+        _mm256_storeu_ps(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 8];
+        for i in 0..8 {
+            out[i] = x[i].mul_add(m[i], a[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_fmadd_cols_f64(x: [f64; 4], m: [f64; 4], a: [f64; 4]) -> [f64; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_pd(x.as_ptr());
+        let v_m = _mm256_loadu_pd(m.as_ptr());
+        let v_a = _mm256_loadu_pd(a.as_ptr());
+        let res = _mm256_fmadd_pd(v_x, v_m, v_a);
+        let mut out = [0.0; 4];
+        _mm256_storeu_pd(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].mul_add(m[i], a[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_cbrt_f64(x: [f64; 4]) -> [f64; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_pd(x.as_ptr());
+        let bits = _mm256_castpd_si256(v_x);
+        
+        let sign_mask = _mm256_set1_epi64x(0x8000000000000000u64 as i64);
+        let abs_mask = _mm256_set1_epi64x(0x7FFFFFFFFFFFFFFFi64);
+        
+        let v_sign = _mm256_and_si256(bits, sign_mask);
+        let v_abs_bits = _mm256_and_si256(bits, abs_mask);
+        
+        let mut abs_bits_arr = [0u64; 4];
+        _mm256_storeu_si256(abs_bits_arr.as_mut_ptr() as *mut __m256i, v_abs_bits);
+        for i in 0..4 {
+            abs_bits_arr[i] = abs_bits_arr[i] / 3 + 0x2A9F789300000000;
+        }
+        let v_guess = _mm256_castsi256_pd(_mm256_loadu_si256(abs_bits_arr.as_ptr() as *const __m256i));
+        
+        let v_abs_x = _mm256_castsi256_pd(v_abs_bits);
+        let g2 = _mm256_mul_pd(v_guess, v_guess);
+        let div = _mm256_div_pd(v_abs_x, _mm256_mul_pd(_mm256_set1_pd(3.0), g2));
+        let refined = _mm256_fmadd_pd(_mm256_set1_pd(0.6666666666666666), v_guess, div);
+        
+        let res_bits = _mm256_or_si256(_mm256_and_si256(_mm256_castpd_si256(refined), abs_mask), v_sign);
+        let res = _mm256_castsi256_pd(res_bits);
+
+        let mut out = [0.0; 4];
+        _mm256_storeu_pd(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].approx_cbrt();
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_powf_cols_f64(x: [f64; 4], y: [f64; 4]) -> [f64; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let lnx = batch_approx_ln_f64(x);
+        let v_lnx = _mm256_loadu_pd(lnx.as_ptr());
+        let v_y = _mm256_loadu_pd(y.as_ptr());
+        
+        let y_lnx = _mm256_mul_pd(v_y, v_lnx);
+        
+        let mut y_lnx_arr = [0.0; 4];
+        _mm256_storeu_pd(y_lnx_arr.as_mut_ptr(), y_lnx);
+        
+        batch_approx_exp_f64(y_lnx_arr)
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].approx_powf(y[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_approx_powi_cols_f64(x: [f64; 4], n: [i32; 4]) -> [f64; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut v_base = _mm256_loadu_pd(x.as_ptr());
+        let v_n = _mm_loadu_si128(n.as_ptr() as *const __m128i);
+        let v_n_epi64 = _mm256_cvtepi32_epi64(v_n);
+        
+        let v_is_neg = _mm256_cmpgt_epi64(_mm256_setzero_si256(), v_n_epi64);
+        let v_is_zero = _mm256_cmpeq_epi64(_mm256_setzero_si256(), v_n_epi64);
+        
+        // abs(n) for epi64 is a bit more manual in AVX2
+        // abs_x = (x ^ sign) - sign? 
+        let v_sign = _mm256_cmpgt_epi64(_mm256_setzero_si256(), v_n_epi64);
+        let v_e = _mm256_sub_epi64(_mm256_xor_si256(v_n_epi64, v_sign), v_sign);
+        
+        let mut e_current = v_e;
+        let mut v_result = _mm256_set1_pd(1.0);
+        
+        for _ in 0..63 {
+            let bit_set = _mm256_cmpeq_epi64(_mm256_and_si256(e_current, _mm256_set1_epi64x(1)), _mm256_set1_epi64x(1));
+            let v_mul = _mm256_mul_pd(v_result, v_base);
+            v_result = _mm256_blendv_pd(v_result, v_mul, _mm256_castsi256_pd(bit_set));
+            
+            v_base = _mm256_mul_pd(v_base, v_base);
+            e_current = _mm256_srli_epi64(e_current, 1);
+        }
+        
+        let mut res_arr = [0.0; 4];
+        _mm256_storeu_pd(res_arr.as_mut_ptr(), v_result);
+        let res_inv = batch_approx_inv_f64(res_arr);
+        let v_inv = _mm256_loadu_pd(res_inv.as_ptr());
+        
+        v_result = _mm256_blendv_pd(v_result, v_inv, _mm256_castsi256_pd(v_is_neg));
+        v_result = _mm256_blendv_pd(v_result, _mm256_set1_pd(1.0), _mm256_castsi256_pd(v_is_zero));
+
+        let mut out = [0.0; 4];
+        _mm256_storeu_pd(out.as_mut_ptr(), v_result);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].approx_powi(n[i]);
+        }
         out
     }
 }
@@ -455,6 +792,35 @@ pub fn batch_asymmetric_fma_f32(x: [f32; 8], mode: f32, sigma_lo: f32, sigma_hi:
 }
 
 #[inline(always)]
+pub fn batch_asymmetric_fma_cols_f32(x: [f32; 8], mode: [f32; 8], sigma_lo: [f32; 8], sigma_hi: [f32; 8]) -> [f32; 8] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_ps(x.as_ptr());
+        let v_mode = _mm256_loadu_ps(mode.as_ptr());
+        let v_lo = _mm256_loadu_ps(sigma_lo.as_ptr());
+        let v_hi = _mm256_loadu_ps(sigma_hi.as_ptr());
+        
+        let mask = _mm256_cmp_ps(v_x, _mm256_setzero_ps(), _CMP_LT_OQ);
+        let sigma = _mm256_blendv_ps(v_hi, v_lo, mask);
+        let res = _mm256_fmadd_ps(v_x, sigma, v_mode);
+        
+        let mut out = [0.0; 8];
+        _mm256_storeu_ps(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 8];
+        for i in 0..8 {
+            let sigma = if x[i] < 0.0 { sigma_lo[i] } else { sigma_hi[i] };
+            out[i] = x[i].mul_add(sigma, mode[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
 pub fn batch_fmadd_f64(x: [f64; 4], m: f64, a: f64) -> [f64; 4] {
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
     unsafe {
@@ -501,6 +867,35 @@ pub fn batch_asymmetric_fma_f64(x: [f64; 4], mode: f64, sigma_lo: f64, sigma_hi:
         for i in 0..4 {
             let sigma = if x[i] < 0.0 { sigma_lo } else { sigma_hi };
             out[i] = x[i].mul_add(sigma, mode);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch_asymmetric_fma_cols_f64(x: [f64; 4], mode: [f64; 4], sigma_lo: [f64; 4], sigma_hi: [f64; 4]) -> [f64; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm256_loadu_pd(x.as_ptr());
+        let v_mode = _mm256_loadu_pd(mode.as_ptr());
+        let v_lo = _mm256_loadu_pd(sigma_lo.as_ptr());
+        let v_hi = _mm256_loadu_pd(sigma_hi.as_ptr());
+        
+        let mask = _mm256_cmp_pd(v_x, _mm256_setzero_pd(), _CMP_LT_OQ);
+        let sigma = _mm256_blendv_pd(v_hi, v_lo, mask);
+        let res = _mm256_fmadd_pd(v_x, sigma, v_mode);
+        
+        let mut out = [0.0; 4];
+        _mm256_storeu_pd(out.as_mut_ptr(), res);
+        out
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            let sigma = if x[i] < 0.0 { sigma_lo[i] } else { sigma_hi[i] };
+            out[i] = x[i].mul_add(sigma, mode[i]);
         }
         out
     }
@@ -663,6 +1058,121 @@ mod tests {
         for i in 0..4 {
             let sigma = if input[i] < 0.0 { sigma_lo } else { sigma_hi };
             let scalar_res = input[i].mul_add(sigma, mode);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_fmadd_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let m = [0.5, 0.5, 0.5, 0.5, 2.0, 2.0, 2.0, 2.0];
+        let a = [10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 0.0];
+        let batch_res = batch_fmadd_cols_f32(x, m, a);
+        for i in 0..8 {
+            let scalar_res = x[i].mul_add(m[i], a[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_fmadd_cols_f64() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let m = [0.5, 0.5, 2.0, 2.0];
+        let a = [10.0, 10.0, 0.0, 0.0];
+        let batch_res = batch_fmadd_cols_f64(x, m, a);
+        for i in 0..4 {
+            let scalar_res = x[i].mul_add(m[i], a[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+    #[test]
+    fn test_batch_approx_cbrt_f32() {
+        let input = [0.0, 1.0, -1.0, 8.0, -27.0, 1000.0, 0.5, -0.001];
+        let batch_res = batch_approx_cbrt_f32(input);
+        for i in 0..8 {
+            let scalar_res = crate::approx_cbrt_f32(input[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits(), "Mismatch at {}: batch {}, scalar {}", input[i], batch_res[i], scalar_res);
+        }
+    }
+
+    #[test]
+    fn test_batch_approx_cbrt_f64() {
+        let input = [0.0, 1.0, -8.0, 1000.0];
+        let batch_res = batch_approx_cbrt_f64(input);
+        for i in 0..4 {
+            let scalar_res = crate::approx_cbrt_f64(input[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits(), "Mismatch at {}: batch {}, scalar {}", input[i], batch_res[i], scalar_res);
+        }
+    }
+
+    #[test]
+    fn test_batch_approx_powf_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let y = [2.0, 0.5, 1.0, 0.0, -1.0, 2.5, 3.0, 0.1];
+        let batch_res = batch_approx_powf_cols_f32(x, y);
+        for i in 0..8 {
+            let scalar_res = crate::approx_powf_f32(x[i], y[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_approx_powf_cols_f64() {
+        let x = [1.0, 2.0, 4.0, 10.0];
+        let y = [2.0, 0.5, 1.0, -1.0];
+        let batch_res = batch_approx_powf_cols_f64(x, y);
+        for i in 0..4 {
+            let scalar_res = crate::approx_powf_f64(x[i], y[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_approx_powi_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0, 2.0, 2.0, 0.5, 10.0];
+        let n = [0, 1, 2, 3, -1, -2, 2, 5];
+        let batch_res = batch_approx_powi_cols_f32(x, n);
+        for i in 0..8 {
+            let scalar_res = crate::approx_powi_f32(x[i], n[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits(), "Mismatch at {}^{}: batch {}, scalar {}", x[i], n[i], batch_res[i], scalar_res);
+        }
+    }
+
+    #[test]
+    fn test_batch_approx_powi_cols_f64() {
+        let x = [1.0, 2.0, 3.0, 0.5];
+        let n = [0, 2, -1, 3];
+        let batch_res = batch_approx_powi_cols_f64(x, n);
+        for i in 0..4 {
+            let scalar_res = crate::approx_powi_f64(x[i], n[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_asymmetric_fma_cols_f32() {
+        let x = [1.0, -2.0, 3.5, 0.0, -0.5, 10.0, 100.0, -100.0];
+        let mode = [5.0, 5.0, 5.0, 0.0, 1.0, 2.0, 3.0, 4.0];
+        let sigma_lo = [0.5, 0.5, 0.5, 0.5, 0.1, 0.2, 0.3, 0.4];
+        let sigma_hi = [2.0, 2.0, 2.0, 2.0, 0.5, 0.6, 0.7, 0.8];
+        let batch_res = batch_asymmetric_fma_cols_f32(x, mode, sigma_lo, sigma_hi);
+        for i in 0..8 {
+            let sigma = if x[i] < 0.0 { sigma_lo[i] } else { sigma_hi[i] };
+            let scalar_res = x[i].mul_add(sigma, mode[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_asymmetric_fma_cols_f64() {
+        let x = [1.0, -2.0, 3.5, 0.0];
+        let mode = [5.0, 0.0, 1.0, 2.0];
+        let sigma_lo = [0.5, 0.5, 0.1, 0.2];
+        let sigma_hi = [2.0, 2.0, 0.5, 0.6];
+        let batch_res = batch_asymmetric_fma_cols_f64(x, mode, sigma_lo, sigma_hi);
+        for i in 0..4 {
+            let sigma = if x[i] < 0.0 { sigma_lo[i] } else { sigma_hi[i] };
+            let scalar_res = x[i].mul_add(sigma, mode[i]);
             assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
         }
     }

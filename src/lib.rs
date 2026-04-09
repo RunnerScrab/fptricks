@@ -409,7 +409,7 @@ pub(crate) fn approx_cbrt_f32(x: f32) -> f32 {
     let abs_x = f32::from_bits(x.to_bits() & 0x7FFFFFFF);
     let guess = f32::from_bits(abs_x.to_bits() / 3 + 0x2a514067);
     let y2 = guess * guess;
-    let refined = 0.6666667 * guess + abs_x / (3.0 * y2);
+    let refined = guess.mul_add(0.6666667, abs_x / (3.0 * y2));
     f32::from_bits(refined.to_bits() | sign)
 }
 
@@ -538,7 +538,7 @@ pub(crate) fn approx_cbrt_f64(x: f64) -> f64 {
     let abs_x = f64::from_bits(x.to_bits() & 0x7FFFFFFFFFFFFFFF);
     let guess = f64::from_bits(abs_x.to_bits() / 3 + 0x2A9F789300000000);
     let y2 = guess * guess;
-    let refined = 0.6666666666666666 * guess + abs_x / (3.0 * y2);
+    let refined = guess.mul_add(0.6666666666666666, abs_x / (3.0 * y2));
     f64::from_bits(refined.to_bits() | sign)
 }
 
@@ -658,7 +658,7 @@ pub(crate) fn approx_inv_f32(x: f32) -> f32 {
     // Bit-magic seed: interpret bits as y₀ ≈ 1/x
     let y0 = f32::from_bits(0x7EF127EA_u32.wrapping_sub(x.to_bits()));
     // One Newton-Raphson step
-    y0 * (2.0 - x * y0)
+    y0 * x.mul_add(-y0, 2.0)
 }
 
 #[inline(always)]
@@ -673,8 +673,8 @@ pub(crate) fn approx_inv_f64(x: f64) -> f64 {
     // Bit-magic seed adapted for f64 biases
     let y0 = f64::from_bits(0x7FDE623822835EEA_u64.wrapping_sub(x.to_bits()));
     // Two Newton-Raphson steps
-    let y1 = y0 * (2.0 - x * y0);
-    y1 * (2.0 - x * y1)
+    let y1 = y0 * x.mul_add(-y0, 2.0);
+    y1 * x.mul_add(-y1, 2.0)
 }
 
 #[inline(always)]
