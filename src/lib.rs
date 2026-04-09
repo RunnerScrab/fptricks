@@ -393,8 +393,7 @@ pub(crate) fn approx_ln_f64(x: f64) -> f64 {
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.093%
 pub(crate) fn approx_sqrt_f32(x: f32) -> f32 {
-    let guess = f32::from_bits((x.to_bits() >> 1) + 0x1fbb4000);
-    0.5 * (guess + x / guess)
+    x.sqrt()
 }
 
 #[inline(always)]
@@ -521,8 +520,7 @@ pub(crate) fn approx_sin_cos_f32(x: f32) -> (f32, f32) {
 /// Error characteristics are comparable to the f32 version.
 /// **Measured relative error (over a representative sample):** 0.0% – 0.093%
 pub(crate) fn approx_sqrt_f64(x: f64) -> f64 {
-    let guess = f64::from_bits((x.to_bits() >> 1) + 0x1FF7A00000000000);
-    0.5 * (guess + x / guess)
+    x.sqrt()
 }
 
 #[inline(always)]
