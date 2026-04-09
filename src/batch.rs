@@ -354,6 +354,7 @@ pub fn batch_approx_powf_f64(x: f64, y: [f64; 4]) -> [f64; 4] {
         for i in 0..4 {
             out[i] = (y[i] * lnx).approx_exp();
         }
+        out
     }
 }
 
