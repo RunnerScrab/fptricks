@@ -52,6 +52,13 @@ fn bench_f32(c: &mut Criterion) {
         })
     });
 
+    let trig_val: f32 = 0.5;
+    group.bench_function("acos_std", |b| b.iter(|| black_box(trig_val).acos()));
+    group.bench_function("acos_fast", |b| b.iter(|| black_box(trig_val).approx_acos()));
+
+    group.bench_function("asin_std", |b| b.iter(|| black_box(trig_val).asin()));
+    group.bench_function("asin_fast", |b| b.iter(|| black_box(trig_val).approx_asin()));
+
     // Inverse
     group.bench_function("inv_std", |b| b.iter(|| 1.0 / black_box(val)));
     group.bench_function("inv_fast", |b| b.iter(|| black_box(val).approx_inv()));
@@ -117,6 +124,13 @@ fn bench_f64(c: &mut Criterion) {
             (v.approx_sin(), v.approx_cos())
         })
     });
+
+    let trig_val: f64 = 0.5;
+    group.bench_function("acos_std", |b| b.iter(|| black_box(trig_val).acos()));
+    group.bench_function("acos_fast", |b| b.iter(|| black_box(trig_val).approx_acos()));
+
+    group.bench_function("asin_std", |b| b.iter(|| black_box(trig_val).asin()));
+    group.bench_function("asin_fast", |b| b.iter(|| black_box(trig_val).approx_asin()));
 
     // Inverse
     group.bench_function("inv_std", |b| b.iter(|| 1.0 / black_box(val)));

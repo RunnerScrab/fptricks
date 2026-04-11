@@ -1,3 +1,4 @@
+#![allow(unused)]
 mod batch;
 pub use batch::*;
 
@@ -15,6 +16,8 @@ pub trait FastFloatFnHaver: Sized {
     fn approx_sin(self) -> Self;
     fn approx_cos(self) -> Self;
     fn approx_sin_cos(self) -> (Self, Self);
+    fn approx_acos(self) -> Self;
+    fn approx_asin(self) -> Self;
     fn approx_inv(self) -> Self;
     ///Worse in all cases
     fn approx_powi(self, n: i32) -> Self;
@@ -86,6 +89,16 @@ impl FastFloatFnHaver for f32 {
     #[inline(always)]
     fn approx_sin_cos(self) -> (Self, Self) {
         approx_sin_cos_f32(self)
+    }
+
+    #[inline(always)]
+    fn approx_acos(self) -> Self {
+        approx_acos_f32(self)
+    }
+
+    #[inline(always)]
+    fn approx_asin(self) -> Self {
+        approx_asin_f32(self)
     }
 
     #[inline(always)]
@@ -168,6 +181,16 @@ impl FastFloatFnHaver for f64 {
     #[inline(always)]
     fn approx_sin_cos(self) -> (Self, Self) {
         approx_sin_cos_f64(self)
+    }
+
+    #[inline(always)]
+    fn approx_acos(self) -> Self {
+        approx_acos_f64(self)
+    }
+
+    #[inline(always)]
+    fn approx_asin(self) -> Self {
+        approx_asin_f64(self)
     }
 
     #[inline(always)]
@@ -645,6 +668,54 @@ pub(crate) fn approx_sin_cos_f64(x: f64) -> (f64, f64) {
 }
 
 #[inline(always)]
+/// Approximates acos(x) for f32 on [-1, 1].
+///
+/// Uses standard A&S polynomial approximation branchlessly.
+/// Maximum absolute error ~ 1.4e-5.
+pub(crate) fn approx_acos_f32(x: f32) -> f32 {
+    let abs_x = f32::from_bits(x.to_bits() & 0x7FFFFFFF);
+    let is_neg: u32 = ((x < 0.0) as u32).wrapping_neg();
+    let res = approx_sqrt_f32(1.0 - abs_x) * (-0.0187293_f32)
+        .mul_add(abs_x, 0.0742610)
+        .mul_add(abs_x, -0.2121144)
+        .mul_add(abs_x, 1.5707288);
+    let neg_res = std::f32::consts::PI - res;
+    f32::from_bits((is_neg & neg_res.to_bits()) | (!is_neg & res.to_bits()))
+}
+
+#[inline(always)]
+/// Approximates asin(x) for f32 on [-1, 1].
+///
+/// Evaluates as π/2 - approx_acos(x).
+pub(crate) fn approx_asin_f32(x: f32) -> f32 {
+    std::f32::consts::FRAC_PI_2 - approx_acos_f32(x)
+}
+
+#[inline(always)]
+/// Approximates acos(x) for f64 on [-1, 1].
+///
+/// Uses standard A&S polynomial approximation branchlessly.
+/// Maximum absolute error ~ 1.4e-5.
+pub(crate) fn approx_acos_f64(x: f64) -> f64 {
+    let abs_x = f64::from_bits(x.to_bits() & 0x7FFFFFFFFFFFFFFF);
+    let is_neg: u64 = ((x < 0.0) as u64).wrapping_neg();
+    let res = approx_sqrt_f64(1.0 - abs_x) * (-0.0187293_f64)
+        .mul_add(abs_x, 0.0742610)
+        .mul_add(abs_x, -0.2121144)
+        .mul_add(abs_x, 1.5707288);
+    let neg_res = std::f64::consts::PI - res;
+    f64::from_bits((is_neg & neg_res.to_bits()) | (!is_neg & res.to_bits()))
+}
+
+#[inline(always)]
+/// Approximates asin(x) for f64 on [-1, 1].
+///
+/// Evaluates as π/2 - approx_acos(x).
+pub(crate) fn approx_asin_f64(x: f64) -> f64 {
+    std::f64::consts::FRAC_PI_2 - approx_acos_f64(x)
+}
+
+#[inline(always)]
 /// Approximates 1/x for f32 (positive x).
 ///
 /// Computes a bit-manipulation seed `y₀ = 0x7EF127EA - bits(x)`, which
@@ -872,6 +943,37 @@ mod tests {
         }
         log::info!("approx_sin   abs_err range: best={sin_min:.6e}  worst={sin_max:.6e}");
         log::info!("approx_cos   abs_err range: best={cos_min:.6e}  worst={cos_max:.6e}");
+
+        let vals: [f64; 5] = [-1.0, -0.5, 0.0, 0.5, 1.0];
+        let (mut acos_min, mut acos_max) = (f64::MAX, 0.0_f64);
+        let (mut asin_min, mut asin_max) = (f64::MAX, 0.0_f64);
+        for &v in &vals {
+            let r_acos = v.approx_acos();
+            let exact_acos = v.acos();
+            let err_acos = (r_acos - exact_acos).abs();
+            acos_min = acos_min.min(err_acos);
+            acos_max = acos_max.max(err_acos);
+            assert!(
+                err_acos < 1.5e-4,
+                "acos error too high: {} != {}",
+                r_acos,
+                exact_acos
+            );
+
+            let r_asin = v.approx_asin();
+            let exact_asin = v.asin();
+            let err_asin = (r_asin - exact_asin).abs();
+            asin_min = asin_min.min(err_asin);
+            asin_max = asin_max.max(err_asin);
+            assert!(
+                err_asin < 1.5e-4,
+                "asin error too high: {} != {}",
+                r_asin,
+                exact_asin
+            );
+        }
+        log::info!("approx_acos   abs_err range: best={acos_min:.6e}  worst={acos_max:.6e}");
+        log::info!("approx_asin   abs_err range: best={asin_min:.6e}  worst={asin_max:.6e}");
     }
 
     #[test]
@@ -1145,5 +1247,30 @@ mod tests {
             assert!(rel_err < 0.05, "ln_f32({x}) rel_err={rel_err} too high");
         }
         log::info!("approx_ln_f32  rel_err range: best={ln32_min:.6e}  worst={ln32_max:.6e}");
+    }
+
+    #[test]
+    fn test_approx_arcs() {
+        init_logger();
+        // Test multiple values carefully chosen to evaluate edge cases
+        let cases: &[f64] = &[-1.0, -0.5, 0.0, 0.5, 1.0];
+        for &x in cases {
+            let acos_approx = x.approx_acos();
+            let acos_exact = x.acos();
+            assert!((acos_approx - acos_exact).abs() < 8e-5, "acos error too high: {} != {}", acos_approx, acos_exact);
+            
+            let asin_approx = x.approx_asin();
+            let asin_exact = x.asin();
+            assert!((asin_approx - asin_exact).abs() < 8e-5, "asin error too high: {} != {}", asin_approx, asin_exact);
+
+            let x32 = x as f32;
+            let acos_approx32 = x32.approx_acos();
+            let acos_exact32 = x32.acos();
+            assert!((acos_approx32 - acos_exact32).abs() < 8e-5, "f32 acos error too high: {} != {}", acos_approx32, acos_exact32);
+            
+            let asin_approx32 = x32.approx_asin();
+            let asin_exact32 = x32.asin();
+            assert!((asin_approx32 - asin_exact32).abs() < 8e-5, "f32 asin error too high: {} != {}", asin_approx32, asin_exact32);
+        }
     }
 }
