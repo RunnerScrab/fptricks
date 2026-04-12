@@ -185,13 +185,11 @@ fn bench_batch_f32(c: &mut Criterion) {
 
     group.bench_function("ln_batch", |b| b.iter(|| batch_approx_ln_f32(black_box(x))));
     group.bench_function("ln_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = val[i].approx_ln();
-            }
-            out
+            for i in 0..8 { out[i] = val[i].approx_ln(); }
+            black_box(out[0])
         })
     });
 
@@ -199,13 +197,11 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_approx_inv_f32(black_box(x)))
     });
     group.bench_function("inv_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = val[i].approx_inv();
-            }
-            out
+            for i in 0..8 { out[i] = val[i].approx_inv(); }
+            black_box(out[0])
         })
     });
 
@@ -213,13 +209,11 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_approx_exp_f32(black_box(x)))
     });
     group.bench_function("exp_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = val[i].approx_exp();
-            }
-            out
+            for i in 0..8 { out[i] = val[i].approx_exp(); }
+            black_box(out[0])
         })
     });
 
@@ -227,13 +221,11 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_approx_sqrt_f32(black_box(x)))
     });
     group.bench_function("sqrt_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = val[i].approx_sqrt();
-            }
-            out
+            for i in 0..8 { out[i] = val[i].approx_sqrt(); }
+            black_box(out[0])
         })
     });
 
@@ -241,13 +233,11 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_approx_cbrt_f32(black_box(x)))
     });
     group.bench_function("cbrt_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = val[i].approx_cbrt();
-            }
-            out
+            for i in 0..8 { out[i] = val[i].approx_cbrt(); }
+            black_box(out[0])
         })
     });
 
@@ -255,16 +245,16 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_approx_sin_cos_f32(black_box(x)))
     });
     group.bench_function("sin_cos_scalar_loop", |b| {
+        let mut out_s = [0.0f32; 8];
+        let mut out_c = [0.0f32; 8];
         b.iter(|| {
             let val = black_box(x);
-            let mut out_s = [0.0; 8];
-            let mut out_c = [0.0; 8];
             for i in 0..8 {
                 let (s, c) = val[i].approx_sin_cos();
                 out_s[i] = s;
                 out_c[i] = c;
             }
-            (out_s, out_c)
+            black_box((out_s[0], out_c[0]))
         })
     });
 
@@ -272,14 +262,12 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| chunk_approx_powf_cols_f32(black_box(x), black_box(y)))
     });
     group.bench_function("powf_cols_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let vx = black_box(x);
             let vy = black_box(y);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = vx[i].approx_powf(vy[i]);
-            }
-            out
+            for i in 0..8 { out[i] = vx[i].approx_powf(vy[i]); }
+            black_box(out[0])
         })
     });
 
@@ -287,14 +275,12 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_approx_powi_cols_f32(black_box(x), black_box(n)))
     });
     group.bench_function("powi_cols_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let vx = black_box(x);
             let vn = black_box(n);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = vx[i].approx_powi(vn[i]);
-            }
-            out
+            for i in 0..8 { out[i] = vx[i].approx_powi(vn[i]); }
+            black_box(out[0])
         })
     });
 
@@ -302,15 +288,13 @@ fn bench_batch_f32(c: &mut Criterion) {
         b.iter(|| batch_fmadd_cols_f32(black_box(x), black_box(y), black_box(z)))
     });
     group.bench_function("fmadd_cols_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let vx = black_box(x);
             let vy = black_box(y);
             let vz = black_box(z);
-            let mut out = [0.0; 8];
-            for i in 0..8 {
-                out[i] = vx[i].mul_add(vy[i], vz[i]);
-            }
-            out
+            for i in 0..8 { out[i] = vx[i].mul_add(vy[i], vz[i]); }
+            black_box(out[0])
         })
     });
 
@@ -320,17 +304,17 @@ fn bench_batch_f32(c: &mut Criterion) {
         })
     });
     group.bench_function("asymmetric_fma_cols_scalar_loop", |b| {
+        let mut out = [0.0f32; 8];
         b.iter(|| {
             let vx = black_box(x);
             let vz = black_box(z);
             let v_lo = black_box(y);
             let v_hi = black_box(z);
-            let mut out = [0.0; 8];
             for i in 0..8 {
                 let sigma = if vx[i] < 0.0 { v_lo[i] } else { v_hi[i] };
                 out[i] = vx[i].mul_add(sigma, vz[i]);
             }
-            out
+            black_box(out[0])
         })
     });
 
@@ -346,13 +330,11 @@ fn bench_batch_f64(c: &mut Criterion) {
 
     group.bench_function("ln_batch", |b| b.iter(|| batch_approx_ln_f64(black_box(x))));
     group.bench_function("ln_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = val[i].approx_ln();
-            }
-            out
+            for i in 0..4 { out[i] = val[i].approx_ln(); }
+            black_box(out[0])
         })
     });
 
@@ -360,13 +342,11 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_approx_inv_f64(black_box(x)))
     });
     group.bench_function("inv_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = val[i].approx_inv();
-            }
-            out
+            for i in 0..4 { out[i] = val[i].approx_inv(); }
+            black_box(out[0])
         })
     });
 
@@ -374,13 +354,11 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_approx_exp_f64(black_box(x)))
     });
     group.bench_function("exp_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = val[i].approx_exp();
-            }
-            out
+            for i in 0..4 { out[i] = val[i].approx_exp(); }
+            black_box(out[0])
         })
     });
 
@@ -388,13 +366,11 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_approx_sqrt_f64(black_box(x)))
     });
     group.bench_function("sqrt_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = val[i].approx_sqrt();
-            }
-            out
+            for i in 0..4 { out[i] = val[i].approx_sqrt(); }
+            black_box(out[0])
         })
     });
 
@@ -402,13 +378,11 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_approx_cbrt_f64(black_box(x)))
     });
     group.bench_function("cbrt_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let val = black_box(x);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = val[i].approx_cbrt();
-            }
-            out
+            for i in 0..4 { out[i] = val[i].approx_cbrt(); }
+            black_box(out[0])
         })
     });
 
@@ -416,16 +390,16 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_approx_sin_cos_f64(black_box(x)))
     });
     group.bench_function("sin_cos_scalar_loop", |b| {
+        let mut out_s = [0.0f64; 4];
+        let mut out_c = [0.0f64; 4];
         b.iter(|| {
             let val = black_box(x);
-            let mut out_s = [0.0; 4];
-            let mut out_c = [0.0; 4];
             for i in 0..4 {
                 let (s, c) = val[i].approx_sin_cos();
                 out_s[i] = s;
                 out_c[i] = c;
             }
-            (out_s, out_c)
+            black_box((out_s[0], out_c[0]))
         })
     });
 
@@ -433,14 +407,12 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| chunk_approx_powf_cols_f64(black_box(x), black_box(y)))
     });
     group.bench_function("powf_cols_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let vx = black_box(x);
             let vy = black_box(y);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = vx[i].approx_powf(vy[i]);
-            }
-            out
+            for i in 0..4 { out[i] = vx[i].approx_powf(vy[i]); }
+            black_box(out[0])
         })
     });
 
@@ -448,14 +420,12 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_approx_powi_cols_f64(black_box(x), black_box(n)))
     });
     group.bench_function("powi_cols_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let vx = black_box(x);
             let vn = black_box(n);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = vx[i].approx_powi(vn[i]);
-            }
-            out
+            for i in 0..4 { out[i] = vx[i].approx_powi(vn[i]); }
+            black_box(out[0])
         })
     });
 
@@ -463,15 +433,13 @@ fn bench_batch_f64(c: &mut Criterion) {
         b.iter(|| batch_fmadd_cols_f64(black_box(x), black_box(y), black_box(z)))
     });
     group.bench_function("fmadd_cols_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let vx = black_box(x);
             let vy = black_box(y);
             let vz = black_box(z);
-            let mut out = [0.0; 4];
-            for i in 0..4 {
-                out[i] = vx[i].mul_add(vy[i], vz[i]);
-            }
-            out
+            for i in 0..4 { out[i] = vx[i].mul_add(vy[i], vz[i]); }
+            black_box(out[0])
         })
     });
 
@@ -481,17 +449,17 @@ fn bench_batch_f64(c: &mut Criterion) {
         })
     });
     group.bench_function("asymmetric_fma_cols_scalar_loop", |b| {
+        let mut out = [0.0f64; 4];
         b.iter(|| {
             let vx = black_box(x);
             let vz = black_box(z);
             let v_lo = black_box(y);
             let v_hi = black_box(z);
-            let mut out = [0.0; 4];
             for i in 0..4 {
                 let sigma = if vx[i] < 0.0 { v_lo[i] } else { v_hi[i] };
                 out[i] = vx[i].mul_add(sigma, vz[i]);
             }
-            out
+            black_box(out[0])
         })
     });
     group.finish();
