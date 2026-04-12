@@ -1,6 +1,5 @@
 use crate::arithmetic::{approx_inv_f32, approx_inv_f64};
 
-#[inline(always)]
 /// Approximates eˣ (the natural exponential) for f32.
 ///
 /// Uses range reduction to `x = n·ln2 + r`, then evaluates a degree-3 Taylor
@@ -9,30 +8,33 @@ use crate::arithmetic::{approx_inv_f32, approx_inv_f64};
 /// both handled branchlessly.
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.047%
+#[inline(always)]
 pub(crate) fn approx_exp_f32(x: f32) -> f32 {
-    let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
-    let xgeqz: u32 = ((x >= 0.0) as u32).wrapping_neg();
     let is_inf: u32 = ((x > 88.72283) as u32).wrapping_neg();
     let is_z: u32 = ((x < -87.33654) as u32).wrapping_neg();
 
-    const INV_LN2: f32 = std::f32::consts::LOG2_E;
-    const LN2_HI: f32 = std::f32::consts::LN_2;
-    const LN2_LO: f32 = 0.0000014286068;
-    const INV6: f32 = 1.0 / 6.0;
+    if (is_inf | is_z) == 0 {
+        let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
+        let xgeqz: u32 = ((x >= 0.0) as u32).wrapping_neg();
+        const INV_LN2: f32 = std::f32::consts::LOG2_E;
+        const LN2_HI: f32 = std::f32::consts::LN_2;
+        const LN2_LO: f32 = 0.0000014286068;
+        const INV6: f32 = 1.0 / 6.0;
 
-    let xv = (xltz & (-0.5_f32).to_bits()) | (xgeqz & (0.5_f32).to_bits());
-    let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
-    let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
+        let xv = (xltz & (-0.5_f32).to_bits()) | (xgeqz & (0.5_f32).to_bits());
+        let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
+        let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
 
-    let is_good: u32 = !is_inf & !is_z;
-    let exponent = (n + 127) as u32;
-    let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
-    let two_n = f32::from_bits(exponent.wrapping_shl(23));
+        let is_good: u32 = !is_inf & !is_z;
+        let exponent = (n + 127) as u32;
+        let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
+        let two_n = f32::from_bits(exponent.wrapping_shl(23));
 
-    let rv = two_n * res_r;
-    f32::from_bits(
-        is_inf & f32::INFINITY.to_bits() | 0.0_f32.to_bits() & is_z | rv.to_bits() & is_good,
-    )
+        let rv = two_n * res_r;
+        f32::from_bits(rv.to_bits() & is_good)
+    } else {
+        return f32::from_bits((is_inf & f32::INFINITY.to_bits()) | (0.0_f32.to_bits() & is_z));
+    }
 }
 
 #[inline(always)]
@@ -72,30 +74,31 @@ pub fn approx_exp_f32b(x: f32) -> f32 {
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.047%
 pub(crate) fn approx_exp_f64(x: f64) -> f64 {
-    let xltz: u64 = ((x < 0.0) as u64).wrapping_neg();
-    let xgeqz: u64 = ((x >= 0.0) as u64).wrapping_neg();
     let is_inf: u64 = ((x > 709.782712893384) as u64).wrapping_neg();
     let is_z: u64 = ((x < -708.3964185322641) as u64).wrapping_neg();
+    if (is_inf | is_z) == 0 {
+        let xltz: u64 = ((x < 0.0) as u64).wrapping_neg();
+        let xgeqz: u64 = ((x >= 0.0) as u64).wrapping_neg();
+        const INV_LN2: f64 = std::f64::consts::LOG2_E;
+        const LN2_HI: f64 = std::f64::consts::LN_2;
+        const LN2_LO: f64 = 1.9082149292705877e-10;
+        const INV6: f64 = 1.0 / 6.0;
 
-    const INV_LN2: f64 = std::f64::consts::LOG2_E;
-    const LN2_HI: f64 = std::f64::consts::LN_2;
-    const LN2_LO: f64 = 1.9082149292705877e-10;
-    const INV6: f64 = 1.0 / 6.0;
+        let xv = (xltz & (-0.5_f64).to_bits()) | (xgeqz & (0.5_f64).to_bits());
+        let n = (x * INV_LN2 + f64::from_bits(xv)) as i32;
+        let r = (-n as f64).mul_add(LN2_LO, (-n as f64).mul_add(LN2_HI, x));
 
-    let xv = (xltz & (-0.5_f64).to_bits()) | (xgeqz & (0.5_f64).to_bits());
-    let n = (x * INV_LN2 + f64::from_bits(xv)) as i32;
-    let r = (-n as f64).mul_add(LN2_LO, (-n as f64).mul_add(LN2_HI, x));
+        let is_good: u64 = !is_inf & !is_z;
+        let exponent = (n + 1023) as u64;
+        let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
+        let two_n = f64::from_bits(exponent.wrapping_shl(52));
 
-    let is_good: u64 = !is_inf & !is_z;
-    let exponent = (n + 1023) as u64;
-    let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
-    let two_n = f64::from_bits(exponent.wrapping_shl(52));
+        let rv = two_n * res_r;
 
-    let rv = two_n * res_r;
-
-    f64::from_bits(
-        (is_inf & f64::INFINITY.to_bits()) | (0.0_f64.to_bits() & is_z) | (rv.to_bits() & is_good),
-    )
+        f64::from_bits(rv.to_bits() & is_good)
+    } else {
+        f64::from_bits((is_inf & f64::INFINITY.to_bits()) | (0.0_f64.to_bits() & is_z))
+    }
 }
 
 #[inline(always)]
@@ -342,4 +345,3 @@ mod tests {
         assert!((approx_powf_f32(2.0, 3.0) - 8.0).abs() < 0.2); // exp/ln error accumulation
     }
 }
-
