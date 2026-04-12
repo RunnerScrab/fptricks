@@ -11,7 +11,17 @@ env_logger = "0.11"
 criterion = "0.5"
 
 [[bench]]
-name = "math_benches"
+name = "arith_benches"
 harness = false
 
+[[bench]]
+name = "trig_benches"
+harness = false
 
+[[bench]]
+name = "log_benches"
+harness = false
+
+[[bench]]
+name = "batch_benches"
+harness = false
