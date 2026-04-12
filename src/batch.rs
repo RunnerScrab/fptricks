@@ -1816,7 +1816,7 @@ pub fn batch_powf_vec_f32(x: &[f32], y: &[f32], out: &mut [f32]) {
 }
 
 #[inline(always)]
-pub fn batch_approx_powf_cols_f64<const N: usize>(x: [f64; N], y: [f64; N]) -> [f64; N] {
+pub fn batch_approx_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut [f64; N]) {
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     unsafe {
         use core::arch::x86_64::*;
@@ -1824,7 +1824,6 @@ pub fn batch_approx_powf_cols_f64<const N: usize>(x: [f64; N], y: [f64; N]) -> [
         let len = N;
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
-        let mut out: [f64; N] = [0.0; N];
         let out_ptr = out.as_mut_ptr();
         while i + 3 < len {
             let vx = _mm256_loadu_pd(x_ptr.add(i));
@@ -1842,7 +1841,6 @@ pub fn batch_approx_powf_cols_f64<const N: usize>(x: [f64; N], y: [f64; N]) -> [
             out[i] = crate::approx_powf_f64(x[i], y[i]);
             i += 1;
         }
-        out
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     {
