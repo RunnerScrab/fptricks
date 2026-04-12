@@ -312,6 +312,33 @@ pub(crate) fn approx_exp_f32(x: f32) -> f32 {
         is_inf & f32::INFINITY.to_bits() | 0.0_f32.to_bits() & is_z | rv.to_bits() & is_good,
     )
 }
+#[inline(always)]
+pub fn approx_exp_f32b(x: f32) -> f32 {
+    let is_inf: u32 = ((x > 88.72283) as u32).wrapping_neg();
+    let is_z: u32 = ((x < -87.33654) as u32).wrapping_neg();
+    let is_good = !is_inf & !is_z;
+
+    let n = x.mul_add(std::f32::consts::LOG2_E, 0.5).floor() as i32;
+    let r = (-n as f32).mul_add(std::f32::consts::LN_2, x);
+
+    // Padé approximant for exp(r), evaluated at the reduced r
+    let num = (-r - 30.0)
+        .mul_add(r, -420.0)
+        .mul_add(r, -3360.0)
+        .mul_add(r, -15120.0)
+        .mul_add(r, -30240.0);
+    let dem = (r - 30.0)
+        .mul_add(r, 420.0)
+        .mul_add(r, -3360.0)
+        .mul_add(r, 15120.0)
+        .mul_add(r, -30240.0);
+    let two_n = f32::from_bits(((n + 127) as u32).wrapping_shl(23));
+    let rv = two_n * (num / dem);
+
+    f32::from_bits(
+        is_inf & f32::INFINITY.to_bits() | 0.0_f32.to_bits() & is_z | rv.to_bits() & is_good,
+    )
+}
 
 #[inline(always)]
 /// Approximates eˣ (the natural exponential) for f64.
@@ -323,6 +350,7 @@ pub(crate) fn approx_exp_f32(x: f32) -> f32 {
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 0.047%
 pub(crate) fn approx_exp_f64(x: f64) -> f64 {
+    //TODO: Try a Padé approximation; the powfs can be run completely in parallel with AVX2
     let xltz: u64 = ((x < 0.0) as u64).wrapping_neg();
     let xgeqz: u64 = ((x >= 0.0) as u64).wrapping_neg();
     let is_inf: u64 = ((x > 709.782712893384) as u64).wrapping_neg();
@@ -355,6 +383,34 @@ pub(crate) fn approx_exp_f64(x: f64) -> f64 {
 
     let rv = two_n * res_r;
 
+    f64::from_bits(
+        (is_inf & f64::INFINITY.to_bits()) | (0.0_f64.to_bits() & is_z) | (rv.to_bits() & is_good),
+    )
+}
+
+#[inline(always)]
+pub fn approx_exp_f64b(x: f64) -> f64 {
+    let is_inf: u64 = ((x > 709.782712893384) as u64).wrapping_neg();
+    let is_z: u64 = ((x < -708.3964185322641) as u64).wrapping_neg();
+    let is_good = !is_inf & !is_z;
+
+    // Range reduce to r in [-0.5*ln2, 0.5*ln2]
+    let n = x.mul_add(std::f64::consts::LOG2_E, 0.5).floor() as i32;
+    let r = (-n as f64).mul_add(std::f64::consts::LN_2, x);
+
+    // Padé approximant for exp(r), evaluated at the reduced r
+    let num = (-r - 30.0)
+        .mul_add(r, -420.0)
+        .mul_add(r, -3360.0)
+        .mul_add(r, -15120.0)
+        .mul_add(r, -30240.0);
+    let dem = (r - 30.0)
+        .mul_add(r, 420.0)
+        .mul_add(r, -3360.0)
+        .mul_add(r, 15120.0)
+        .mul_add(r, -30240.0);
+    let two_n = f64::from_bits(((n + 1023) as u64).wrapping_shl(52));
+    let rv = two_n * (num / dem);
     f64::from_bits(
         (is_inf & f64::INFINITY.to_bits()) | (0.0_f64.to_bits() & is_z) | (rv.to_bits() & is_good),
     )
@@ -520,10 +576,11 @@ pub(crate) fn approx_sin_cos_f32(x: f32) -> (f32, f32) {
         let x_red = k.mul_add(-TWO_PI, x);
         let x2 = x_red * x_red;
 
-        let s = x_red * (-0.00019841270_f32)
-            .mul_add(x2, 0.008333333)
-            .mul_add(x2, -0.16666667)
-            .mul_add(x2, 1.0);
+        let s = x_red
+            * (-0.00019841270_f32)
+                .mul_add(x2, 0.008333333)
+                .mul_add(x2, -0.16666667)
+                .mul_add(x2, 1.0);
 
         let c = (-0.0013888889_f32)
             .mul_add(x2, 0.041666668)
@@ -633,8 +690,16 @@ pub(crate) fn approx_sin_cos_f64(x: f64) -> (f64, f64) {
 
         // Constants: Lane 0 = cos, Lane 1 = sin
         let mut v = _mm_set_pd(2.75573192239858906e-6, 2.48015873015873e-5);
-        v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(-1.984126984126984e-4, -1.388888888888889e-3));
-        v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(8.333333333333333e-3, 4.166666666666667e-2));
+        v = _mm_fmadd_pd(
+            v,
+            v_x2,
+            _mm_set_pd(-1.984126984126984e-4, -1.388888888888889e-3),
+        );
+        v = _mm_fmadd_pd(
+            v,
+            v_x2,
+            _mm_set_pd(8.333333333333333e-3, 4.166666666666667e-2),
+        );
         v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(-1.666666666666667e-1, -5.0e-1));
         v = _mm_fmadd_pd(v, v_x2, _mm_set_pd(1.0, 1.0));
 
@@ -651,11 +716,12 @@ pub(crate) fn approx_sin_cos_f64(x: f64) -> (f64, f64) {
         let x_red = k.mul_add(-TWO_PI, x);
         let x2 = x_red * x_red;
 
-        let s = x_red * 2.75573192239858906e-6_f64
-            .mul_add(x2, -1.984126984126984e-4)
-            .mul_add(x2, 8.333333333333333e-3)
-            .mul_add(x2, -1.666666666666667e-1)
-            .mul_add(x2, 1.0);
+        let s = x_red
+            * 2.75573192239858906e-6_f64
+                .mul_add(x2, -1.984126984126984e-4)
+                .mul_add(x2, 8.333333333333333e-3)
+                .mul_add(x2, -1.666666666666667e-1)
+                .mul_add(x2, 1.0);
 
         let c = 2.48015873015873e-5_f64
             .mul_add(x2, -1.388888888888889e-3)
@@ -675,10 +741,11 @@ pub(crate) fn approx_sin_cos_f64(x: f64) -> (f64, f64) {
 pub(crate) fn approx_acos_f32(x: f32) -> f32 {
     let abs_x = f32::from_bits(x.to_bits() & 0x7FFFFFFF);
     let is_neg: u32 = ((x < 0.0) as u32).wrapping_neg();
-    let res = approx_sqrt_f32(1.0 - abs_x) * (-0.0187293_f32)
-        .mul_add(abs_x, 0.0742610)
-        .mul_add(abs_x, -0.2121144)
-        .mul_add(abs_x, 1.5707288);
+    let res = approx_sqrt_f32(1.0 - abs_x)
+        * (-0.0187293_f32)
+            .mul_add(abs_x, 0.0742610)
+            .mul_add(abs_x, -0.2121144)
+            .mul_add(abs_x, 1.5707288);
     let neg_res = std::f32::consts::PI - res;
     f32::from_bits((is_neg & neg_res.to_bits()) | (!is_neg & res.to_bits()))
 }
@@ -699,10 +766,11 @@ pub(crate) fn approx_asin_f32(x: f32) -> f32 {
 pub(crate) fn approx_acos_f64(x: f64) -> f64 {
     let abs_x = f64::from_bits(x.to_bits() & 0x7FFFFFFFFFFFFFFF);
     let is_neg: u64 = ((x < 0.0) as u64).wrapping_neg();
-    let res = approx_sqrt_f64(1.0 - abs_x) * (-0.0187293_f64)
-        .mul_add(abs_x, 0.0742610)
-        .mul_add(abs_x, -0.2121144)
-        .mul_add(abs_x, 1.5707288);
+    let res = approx_sqrt_f64(1.0 - abs_x)
+        * (-0.0187293_f64)
+            .mul_add(abs_x, 0.0742610)
+            .mul_add(abs_x, -0.2121144)
+            .mul_add(abs_x, 1.5707288);
     let neg_res = std::f64::consts::PI - res;
     f64::from_bits((is_neg & neg_res.to_bits()) | (!is_neg & res.to_bits()))
 }
@@ -1192,6 +1260,60 @@ mod tests {
     }
 
     #[test]
+    fn test_approx_expb() {
+        init_logger();
+
+        let cases_f64: &[(f64, f64)] = &[
+            (-10.0, (-10.0_f64).exp()),
+            (-1.0, (-1.0_f64).exp()),
+            (0.0, 1.0),
+            (0.5, (0.5_f64).exp()),
+            (1.0, std::f64::consts::E),
+            (2.0, (2.0_f64).exp()),
+            (5.0, (5.0_f64).exp()),
+            (10.0, (10.0_f64).exp()),
+        ];
+        let (mut exp64_min, mut exp64_max) = (f64::MAX, 0.0_f64);
+        for &(x, exact) in cases_f64 {
+            let approx = approx_exp_f64b(x);
+            let rel_err = (approx - exact).abs() / exact.abs();
+            log::debug!("exp_f64({x}): approx={approx} exact={exact} rel_err={rel_err:.6e}");
+            exp64_min = exp64_min.min(rel_err);
+            exp64_max = exp64_max.max(rel_err);
+            assert!(rel_err < 0.01, "exp_f64({x}) rel_err={rel_err} too high");
+        }
+        log::info!("approx_exp_f64 rel_err range: best={exp64_min:.6e}  worst={exp64_max:.6e}");
+        log::debug!("exp_f64(800.0)  = {:?}", approx_exp_f64b(800.0));
+        log::debug!("exp_f64(-800.0) = {:?}", approx_exp_f64b(-800.0));
+        assert_eq!(approx_exp_f64b(800.0), f64::INFINITY);
+        assert_eq!(approx_exp_f64b(-800.0), 0.0);
+
+        let cases_f32: &[(f32, f32)] = &[
+            (-5.0, (-5.0_f32).exp()),
+            (-1.0, (-1.0_f32).exp()),
+            (0.0, 1.0),
+            (0.5, (0.5_f32).exp()),
+            (1.0, std::f32::consts::E),
+            (2.0, (2.0_f32).exp()),
+            (5.0, (5.0_f32).exp()),
+        ];
+        let (mut exp32_min, mut exp32_max) = (f32::MAX, 0.0_f32);
+        for &(x, exact) in cases_f32 {
+            let approx = approx_exp_f32b(x);
+            let rel_err = (approx - exact).abs() / exact.abs();
+            log::debug!("exp_f32({x}): approx={approx} exact={exact} rel_err={rel_err:.6e}");
+            exp32_min = exp32_min.min(rel_err);
+            exp32_max = exp32_max.max(rel_err);
+            assert!(rel_err < 0.01, "exp_f32({x}) rel_err={rel_err} too high");
+        }
+        log::info!("approx_exp_f32 rel_err range: best={exp32_min:.6e}  worst={exp32_max:.6e}");
+        log::debug!("exp_f32(100.0)  = {:?}", approx_exp_f32b(100.0));
+        log::debug!("exp_f32(-100.0) = {:?}", approx_exp_f32b(-100.0));
+        assert_eq!(approx_exp_f32b(100.0), f32::INFINITY);
+        assert_eq!(approx_exp_f32b(-100.0), 0.0);
+    }
+
+    #[test]
     fn test_approx_ln() {
         init_logger();
 
@@ -1257,20 +1379,40 @@ mod tests {
         for &x in cases {
             let acos_approx = x.approx_acos();
             let acos_exact = x.acos();
-            assert!((acos_approx - acos_exact).abs() < 8e-5, "acos error too high: {} != {}", acos_approx, acos_exact);
-            
+            assert!(
+                (acos_approx - acos_exact).abs() < 8e-5,
+                "acos error too high: {} != {}",
+                acos_approx,
+                acos_exact
+            );
+
             let asin_approx = x.approx_asin();
             let asin_exact = x.asin();
-            assert!((asin_approx - asin_exact).abs() < 8e-5, "asin error too high: {} != {}", asin_approx, asin_exact);
+            assert!(
+                (asin_approx - asin_exact).abs() < 8e-5,
+                "asin error too high: {} != {}",
+                asin_approx,
+                asin_exact
+            );
 
             let x32 = x as f32;
             let acos_approx32 = x32.approx_acos();
             let acos_exact32 = x32.acos();
-            assert!((acos_approx32 - acos_exact32).abs() < 8e-5, "f32 acos error too high: {} != {}", acos_approx32, acos_exact32);
-            
+            assert!(
+                (acos_approx32 - acos_exact32).abs() < 8e-5,
+                "f32 acos error too high: {} != {}",
+                acos_approx32,
+                acos_exact32
+            );
+
             let asin_approx32 = x32.approx_asin();
             let asin_exact32 = x32.asin();
-            assert!((asin_approx32 - asin_exact32).abs() < 8e-5, "f32 asin error too high: {} != {}", asin_approx32, asin_exact32);
+            assert!(
+                (asin_approx32 - asin_exact32).abs() < 8e-5,
+                "f32 asin error too high: {} != {}",
+                asin_approx32,
+                asin_exact32
+            );
         }
     }
 }
