@@ -100,7 +100,7 @@ pub fn batch_approx_exp_f32(x: [f32; 8]) -> [f32; 8] {
         let nf = _mm256_cvtepi32_ps(n);
         let neg_nf = _mm256_sub_ps(zero, nf);
 
-        const LN2_HI: f32 = core::f32::consts::LN_2;
+        const LN2_HI: f32 = 0.69314575;
         const LN2_LO: f32 = 0.0000014286068;
 
         let inner = _mm256_fmadd_ps(neg_nf, _mm256_set1_ps(LN2_HI), v_x);

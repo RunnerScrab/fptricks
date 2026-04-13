@@ -10,31 +10,29 @@ use crate::arithmetic::{approx_inv_f32, approx_inv_f64};
 /// **Measured relative error (over a representative sample):** 0.0% – 0.047%
 #[inline(always)]
 pub(crate) fn approx_exp_f32(x: f32) -> f32 {
-    let is_inf: u32 = ((x > 88.72283) as u32).wrapping_neg();
-    let is_z: u32 = ((x < -87.33654) as u32).wrapping_neg();
+    let x_small: u32 = ((x < -87.33654) as u32).wrapping_neg();
+    let x_large: u32 = ((x > 88.72283) as u32).wrapping_neg();
 
-    if (is_inf | is_z) == 0 {
-        let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
-        let xgeqz: u32 = ((x >= 0.0) as u32).wrapping_neg();
-        const INV_LN2: f32 = std::f32::consts::LOG2_E;
-        const LN2_HI: f32 = std::f32::consts::LN_2;
-        const LN2_LO: f32 = 0.0000014286068;
-        const INV6: f32 = 1.0 / 6.0;
-
-        let xv = (xltz & (-0.5_f32).to_bits()) | (xgeqz & (0.5_f32).to_bits());
-        let n = x.mul_add(INV_LN2, f32::from_bits(xv)) as i32;
-        let r = (-n as f32).mul_add(LN2_LO, (-n as f32).mul_add(LN2_HI, x));
-
-        let is_good: u32 = !is_inf & !is_z;
-        let exponent = (n + 127) as u32;
-        let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
-        let two_n = f32::from_bits(exponent.wrapping_shl(23));
-
-        let rv = two_n * res_r;
-        f32::from_bits(rv.to_bits() & is_good)
-    } else {
-        return f32::from_bits((is_inf & f32::INFINITY.to_bits()) | (0.0_f32.to_bits() & is_z));
+    if (x_small | x_large) != 0 {
+        return f32::from_bits((0.0f32.to_bits() & x_small) | (f32::INFINITY.to_bits() & x_large));
     }
+
+    const INV_LN2: f32 = 1.44269504;
+    const LN2_HI: f32 = 0.69314575;
+    const LN2_LO: f32 = 0.0000014286068;
+    const INV6: f32 = 1.0 / 6.0;
+
+    let xltz = ((x < 0.0) as u32).wrapping_neg();
+    let xv = f32::from_bits((xltz & (-0.5f32).to_bits()) | (!xltz & (0.5f32).to_bits()));
+    let n = x.mul_add(INV_LN2, xv) as i32;
+    let nf = n as f32;
+    let r = (-nf).mul_add(LN2_LO, (-nf).mul_add(LN2_HI, x));
+
+    let res_r = r.mul_add(r.mul_add(INV6.mul_add(r, 0.5), 1.0), 1.0);
+    let exponent = (n + 127) as u32;
+    let two_n = f32::from_bits(exponent << 23);
+
+    two_n * res_r
 }
 
 #[inline(always)]

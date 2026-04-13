@@ -61,8 +61,7 @@ impl FastFloatFnHaver for f32 {
 
     #[inline(always)]
     fn approx_exp(self) -> Self {
-        //self.exp() is faster for scalar f32, but we keep the option
-        //logarithmic::approx_exp_f32(self)
+        //Slower logarithmic::approx_exp_f32(self)
         self.exp()
     }
 
