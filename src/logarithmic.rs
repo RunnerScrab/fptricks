@@ -263,8 +263,10 @@ pub(crate) fn approx_powf_f64(x: f64, y: f64) -> f64 {
 /// **Measured relative error (over a representative sample):** 0.0% – 6.5×10⁻⁴%
 /// (positive n; negative n adds `approx_inv_f32` error: up to 0.34%)
 pub(crate) fn approx_powi_f32(x: f32, n: i32) -> f32 {
-    let nz: u32 = ((n == 0) as u32).wrapping_neg();
-    let nltz: u32 = ((n < 0) as u32).wrapping_neg();
+    if n == 0 {
+        const ZERO_RESULT: u32 = 1.0_f32.to_bits(); // x^0 = 1
+        return f32::from_bits(ZERO_RESULT);
+    }
 
     let mut e = n.unsigned_abs(); // handles i32::MIN safely
     let mut base = x;
@@ -275,16 +277,14 @@ pub(crate) fn approx_powi_f32(x: f32, n: i32) -> f32 {
         base *= base;
         e >>= 1;
     }
+
     let pos_result = result.to_bits();
     let neg_result = approx_inv_f32(result).to_bits();
-    let zero_result = 1.0_f32.to_bits(); // x^0 = 1
+    let nltz: u32 = ((n < 0) as u32).wrapping_neg();
 
-    let is_pos: u32 = !nltz & !nz; // n > 0
-
-    f32::from_bits((nltz & neg_result) | (nz & zero_result) | (is_pos & pos_result))
+    f32::from_bits((nltz & neg_result) | (!nltz & pos_result))
 }
 
-#[inline(always)]
 /// Approximates x^n for an integer exponent n, for f64.
 ///
 /// Uses binary exponentiation (O(log |n|) multiplications), implemented
@@ -293,9 +293,12 @@ pub(crate) fn approx_powi_f32(x: f32, n: i32) -> f32 {
 ///
 /// **Measured relative error (over a representative sample):** 0.0% – 6.5×10⁻⁴%
 /// (positive n; negative n adds `approx_inv_f64` error: up to 6.5×10⁻⁴%)
+#[inline(always)]
 pub(crate) fn approx_powi_f64(x: f64, n: i32) -> f64 {
-    let nz: u64 = ((n == 0) as u64).wrapping_neg();
-    let nltz: u64 = ((n < 0) as u64).wrapping_neg();
+    if n == 0 {
+        const ZERO_RESULT: u64 = 1.0_f64.to_bits(); // x^0 = 1
+        return f64::from_bits(ZERO_RESULT);
+    }
 
     let mut e = n.unsigned_abs(); // handles i32::MIN safely
     let mut base = x;
@@ -308,11 +311,8 @@ pub(crate) fn approx_powi_f64(x: f64, n: i32) -> f64 {
     }
     let pos_result = result.to_bits();
     let neg_result = approx_inv_f64(result).to_bits();
-    let zero_result = 1.0_f64.to_bits(); // x^0 = 1
-
-    let is_pos: u64 = !nltz & !nz; // n > 0
-
-    f64::from_bits((nltz & neg_result) | (nz & zero_result) | (is_pos & pos_result))
+    let nltz: u64 = ((n < 0) as u64).wrapping_neg();
+    f64::from_bits((nltz & neg_result) | (!nltz & pos_result))
 }
 
 #[cfg(test)]

@@ -26,7 +26,9 @@ pub(crate) fn fast_div2_f64(x: f64) -> f64 {
 
 #[inline(always)]
 pub(crate) fn fast_mul3_f64(x: f64) -> f64 {
-    fast_mul2_f64(x) + x
+    //The standard operation is faster than any trick we might do,
+    //but this is here so the user doesn't have to look it up
+    x * 3.0
 }
 
 #[inline(always)]
@@ -55,7 +57,7 @@ pub(crate) fn fast_mul8_f64(x: f64) -> f64 {
 
 #[inline(always)]
 pub(crate) fn fast_mul3_f32(x: f32) -> f32 {
-    fast_mul2_f32(x) + x
+    3.0 * x
 }
 
 #[inline(always)]

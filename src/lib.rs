@@ -1,11 +1,11 @@
 #![allow(unused)]
 mod arithmetic;
+mod batch;
 mod logarithmic;
 mod trigonometric;
-mod batch;
 
-pub use batch::*;
 pub use arithmetic::*;
+pub use batch::*;
 pub use logarithmic::*;
 pub use trigonometric::*;
 
@@ -46,7 +46,7 @@ impl FastFloatFnHaver for f32 {
 
     #[inline(always)]
     fn fast_mul3(self) -> Self {
-        arithmetic::fast_mul3_f32(self)
+        3.0 * self
     }
 
     #[inline(always)]
@@ -61,8 +61,9 @@ impl FastFloatFnHaver for f32 {
 
     #[inline(always)]
     fn approx_exp(self) -> Self {
-        // self.exp() was considered faster in some cases, but we keep the option
-        logarithmic::approx_exp_f32(self)
+        //self.exp() is faster for scalar f32, but we keep the option
+        //logarithmic::approx_exp_f32(self)
+        self.exp()
     }
 
     #[inline(always)]
@@ -112,7 +113,10 @@ impl FastFloatFnHaver for f32 {
 
     #[inline(always)]
     fn approx_powi(self, n: i32) -> Self {
-        logarithmic::approx_powi_f32(self, n)
+        self.powi(n)
+        //The normal powi is often marginally worse, but sometimes much better.
+        //Overall its performance is more stable
+        //logarithmic::approx_powi_f32(self, n)
     }
 
     #[inline(always)]
@@ -139,7 +143,7 @@ impl FastFloatFnHaver for f64 {
 
     #[inline(always)]
     fn fast_mul3(self) -> Self {
-        arithmetic::fast_mul3_f64(self)
+        3.0 * self
     }
 
     #[inline(always)]
@@ -204,7 +208,10 @@ impl FastFloatFnHaver for f64 {
 
     #[inline(always)]
     fn approx_powi(self, n: i32) -> Self {
-        logarithmic::approx_powi_f64(self, n)
+        self.powi(n)
+        //The approximate 64-bit version is consistently worse than a normal powi
+        //It may be the second Newton-Raphson step the 32-bit version does not do
+        //logarithmic::approx_powi_f64(self, n)
     }
 
     #[inline(always)]
