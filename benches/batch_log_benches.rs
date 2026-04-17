@@ -73,10 +73,9 @@ fn bench_log_batch_f32(c: &mut Criterion) {
 
     group.bench_function("powf_cols_batch", |b| {
         b.iter(|| {
-            let vx = black_box(x);
-            let vy = black_box(y);
-            let mut out = [0.0f32; 8];
-            batch_approx_powf_cols_f32(&vx, &vy, &mut out);
+            let vx = black_box(&x);
+            let vy = black_box(&y);
+            let out = batch_approx_powf_cols_f32(vx, vy);
             out
         })
     });
@@ -183,10 +182,9 @@ fn bench_log_batch_f64(c: &mut Criterion) {
 
     group.bench_function("powf_cols_batch", |b| {
         b.iter(|| {
-            let vx = black_box(x);
-            let vy = black_box(y);
-            let mut out = [0.0f64; 4];
-            batch_approx_powf_cols_f64(&vx, &vy, &mut out);
+            let vx = black_box(&x);
+            let vy = black_box(&y);
+            let out = batch_approx_powf_cols_f64(vx, vy);
             out
         })
     });

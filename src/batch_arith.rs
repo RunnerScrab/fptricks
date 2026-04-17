@@ -1,4 +1,5 @@
 use crate::FastFloatFnHaver;
+use core::mem::MaybeUninit;
 
 #[inline(always)]
 pub fn batch_approx_inv_f32(x: [f32; 8]) -> [f32; 8] {
@@ -632,7 +633,8 @@ pub fn batch_sum_u64(data: &[u64]) -> u64 {
 }
 
 #[inline(always)]
-pub fn batch_mul_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut [f32; N]) {
+pub fn batch_mul_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     unsafe {
         use core::arch::x86_64::*;
@@ -640,7 +642,7 @@ pub fn batch_mul_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut 
         let len = N;
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
-        let out_ptr = out.as_mut_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f32;
 
         while i + 31 < len {
             let vx0 = _mm256_loadu_ps(x_ptr.add(i));
@@ -677,13 +679,15 @@ pub fn batch_mul_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut 
     #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     {
         for i in 0..N {
-            out[i] = x[i] * y[i];
+            out[i].write(x[i] * y[i]);
         }
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
-pub fn batch_add_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut [f32; N]) {
+pub fn batch_add_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     unsafe {
         use core::arch::x86_64::*;
@@ -691,7 +695,7 @@ pub fn batch_add_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut 
         let len = N;
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
-        let out_ptr = out.as_mut_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f32;
 
         while i + 31 < len {
             let vx0 = _mm256_loadu_ps(x_ptr.add(i));
@@ -733,9 +737,10 @@ pub fn batch_add_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut 
     #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     {
         for i in 0..N {
-            out[i] = x[i] + y[i];
+            out[i].write(x[i] + y[i]);
         }
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
@@ -743,15 +748,16 @@ pub fn batch_fma_cols_f32<const N: usize>(
     x: &[f32; N],
     y: &[f32; N],
     z: &[f32; N],
-    out: &mut [f32; N],
-) {
+) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     for i in 0..N {
-        out[i] = x[i].mul_add(y[i], z[i]);
+        out[i].write(x[i].mul_add(y[i], z[i]));
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
-pub fn batch_mul_3_cols_f32<const N: usize>(
+pub fn batch_mul_3_cols_f32_into<const N: usize>(
     x: &[f32; N],
     y: &[f32; N],
     z: &[f32; N],
@@ -767,6 +773,34 @@ pub fn batch_mul_3_cols_f32<const N: usize>(
         let z_ptr = z.as_ptr();
         let out_ptr = out.as_mut_ptr();
 
+        while i + 31 < len {
+            let vx0 = _mm256_loadu_ps(x_ptr.add(i));
+            let vy0 = _mm256_loadu_ps(y_ptr.add(i));
+            let vz0 = _mm256_loadu_ps(z_ptr.add(i));
+            let res0 = _mm256_mul_ps(_mm256_mul_ps(vx0, vy0), vz0);
+            _mm256_storeu_ps(out_ptr.add(i), res0);
+
+            let vx1 = _mm256_loadu_ps(x_ptr.add(i + 8));
+            let vy1 = _mm256_loadu_ps(y_ptr.add(i + 8));
+            let vz1 = _mm256_loadu_ps(z_ptr.add(i + 8));
+            let res1 = _mm256_mul_ps(_mm256_mul_ps(vx1, vy1), vz1);
+            _mm256_storeu_ps(out_ptr.add(i + 8), res1);
+
+            let vx2 = _mm256_loadu_ps(x_ptr.add(i + 16));
+            let vy2 = _mm256_loadu_ps(y_ptr.add(i + 16));
+            let vz2 = _mm256_loadu_ps(z_ptr.add(i + 16));
+            let res2 = _mm256_mul_ps(_mm256_mul_ps(vx2, vy2), vz2);
+            _mm256_storeu_ps(out_ptr.add(i + 16), res2);
+
+            let vx3 = _mm256_loadu_ps(x_ptr.add(i + 24));
+            let vy3 = _mm256_loadu_ps(y_ptr.add(i + 24));
+            let vz3 = _mm256_loadu_ps(z_ptr.add(i + 24));
+            let res3 = _mm256_mul_ps(_mm256_mul_ps(vx3, vy3), vz3);
+            _mm256_storeu_ps(out_ptr.add(i + 24), res3);
+
+            i += 32;
+        }
+
         while i + 7 < len {
             let vx = _mm256_loadu_ps(x_ptr.add(i));
             let vy = _mm256_loadu_ps(y_ptr.add(i));
@@ -777,9 +811,7 @@ pub fn batch_mul_3_cols_f32<const N: usize>(
         }
 
         while i < len {
-            out_ptr
-                .add(i)
-                .write(*x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i));
+            *out_ptr.add(i) = *x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i);
             i += 1;
         }
     }
@@ -792,7 +824,20 @@ pub fn batch_mul_3_cols_f32<const N: usize>(
 }
 
 #[inline(always)]
-pub fn batch_mul_4_cols_f32<const N: usize>(
+pub fn batch_mul_3_cols_f32<const N: usize>(
+    x: &[f32; N],
+    y: &[f32; N],
+    z: &[f32; N],
+) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_mul_3_cols_f32_into(x, y, z, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f32; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_mul_4_cols_f32_into<const N: usize>(
     x: &[f32; N],
     y: &[f32; N],
     z: &[f32; N],
@@ -810,6 +855,24 @@ pub fn batch_mul_4_cols_f32<const N: usize>(
         let w_ptr = w.as_ptr();
         let out_ptr = out.as_mut_ptr();
 
+        while i + 15 < len {
+            let vx0 = _mm256_loadu_ps(x_ptr.add(i));
+            let vy0 = _mm256_loadu_ps(y_ptr.add(i));
+            let vz0 = _mm256_loadu_ps(z_ptr.add(i));
+            let vw0 = _mm256_loadu_ps(w_ptr.add(i));
+            let res0 = _mm256_mul_ps(_mm256_mul_ps(_mm256_mul_ps(vx0, vy0), vz0), vw0);
+            _mm256_storeu_ps(out_ptr.add(i), res0);
+
+            let vx1 = _mm256_loadu_ps(x_ptr.add(i + 8));
+            let vy1 = _mm256_loadu_ps(y_ptr.add(i + 8));
+            let vz1 = _mm256_loadu_ps(z_ptr.add(i + 8));
+            let vw1 = _mm256_loadu_ps(w_ptr.add(i + 8));
+            let res1 = _mm256_mul_ps(_mm256_mul_ps(_mm256_mul_ps(vx1, vy1), vz1), vw1);
+            _mm256_storeu_ps(out_ptr.add(i + 8), res1);
+
+            i += 16;
+        }
+
         while i + 7 < len {
             let vx = _mm256_loadu_ps(x_ptr.add(i));
             let vy = _mm256_loadu_ps(y_ptr.add(i));
@@ -821,9 +884,7 @@ pub fn batch_mul_4_cols_f32<const N: usize>(
         }
 
         while i < len {
-            out_ptr
-                .add(i)
-                .write(*x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i) * *w_ptr.add(i));
+            *out_ptr.add(i) = *x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i) * *w_ptr.add(i);
             i += 1;
         }
     }
@@ -836,7 +897,175 @@ pub fn batch_mul_4_cols_f32<const N: usize>(
 }
 
 #[inline(always)]
-pub fn batch_mul_3_cols_f64<const N: usize>(
+pub fn batch_mul_4_cols_f32<const N: usize>(
+    x: &[f32; N],
+    y: &[f32; N],
+    z: &[f32; N],
+    w: &[f32; N],
+) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_mul_4_cols_f32_into(x, y, z, w, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f32; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_add_3_cols_f32_into<const N: usize>(
+    x: &[f32; N],
+    y: &[f32; N],
+    z: &[f32; N],
+    out: &mut [f32; N],
+) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut i = 0;
+        let len = N;
+        let x_ptr = x.as_ptr();
+        let y_ptr = y.as_ptr();
+        let z_ptr = z.as_ptr();
+        let out_ptr = out.as_mut_ptr();
+
+        while i + 31 < len {
+            let vx0 = _mm256_loadu_ps(x_ptr.add(i));
+            let vy0 = _mm256_loadu_ps(y_ptr.add(i));
+            let vz0 = _mm256_loadu_ps(z_ptr.add(i));
+            let res0 = _mm256_add_ps(_mm256_add_ps(vx0, vy0), vz0);
+            _mm256_storeu_ps(out_ptr.add(i), res0);
+
+            let vx1 = _mm256_loadu_ps(x_ptr.add(i + 8));
+            let vy1 = _mm256_loadu_ps(y_ptr.add(i + 8));
+            let vz1 = _mm256_loadu_ps(z_ptr.add(i + 8));
+            let res1 = _mm256_add_ps(_mm256_add_ps(vx1, vy1), vz1);
+            _mm256_storeu_ps(out_ptr.add(i + 8), res1);
+
+            let vx2 = _mm256_loadu_ps(x_ptr.add(i + 16));
+            let vy2 = _mm256_loadu_ps(y_ptr.add(i + 16));
+            let vz2 = _mm256_loadu_ps(z_ptr.add(i + 16));
+            let res2 = _mm256_add_ps(_mm256_add_ps(vx2, vy2), vz2);
+            _mm256_storeu_ps(out_ptr.add(i + 16), res2);
+
+            let vx3 = _mm256_loadu_ps(x_ptr.add(i + 24));
+            let vy3 = _mm256_loadu_ps(y_ptr.add(i + 24));
+            let vz3 = _mm256_loadu_ps(z_ptr.add(i + 24));
+            let res3 = _mm256_add_ps(_mm256_add_ps(vx3, vy3), vz3);
+            _mm256_storeu_ps(out_ptr.add(i + 24), res3);
+
+            i += 32;
+        }
+
+        while i + 7 < len {
+            let vx = _mm256_loadu_ps(x_ptr.add(i));
+            let vy = _mm256_loadu_ps(y_ptr.add(i));
+            let vz = _mm256_loadu_ps(z_ptr.add(i));
+            let res = _mm256_add_ps(_mm256_add_ps(vx, vy), vz);
+            _mm256_storeu_ps(out_ptr.add(i), res);
+            i += 8;
+        }
+
+        while i < len {
+            *out_ptr.add(i) = *x_ptr.add(i) + *y_ptr.add(i) + *z_ptr.add(i);
+            i += 1;
+        }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        for i in 0..N {
+            out[i] = x[i] + y[i] + z[i];
+        }
+    }
+}
+
+#[inline(always)]
+pub fn batch_add_3_cols_f32<const N: usize>(
+    x: &[f32; N],
+    y: &[f32; N],
+    z: &[f32; N],
+) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_add_3_cols_f32_into(x, y, z, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f32; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_add_4_cols_f32_into<const N: usize>(
+    x: &[f32; N],
+    y: &[f32; N],
+    z: &[f32; N],
+    w: &[f32; N],
+    out: &mut [f32; N],
+) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut i = 0;
+        let len = N;
+        let x_ptr = x.as_ptr();
+        let y_ptr = y.as_ptr();
+        let z_ptr = z.as_ptr();
+        let w_ptr = w.as_ptr();
+        let out_ptr = out.as_mut_ptr();
+
+        while i + 15 < len {
+            let vx0 = _mm256_loadu_ps(x_ptr.add(i));
+            let vy0 = _mm256_loadu_ps(y_ptr.add(i));
+            let vz0 = _mm256_loadu_ps(z_ptr.add(i));
+            let vw0 = _mm256_loadu_ps(w_ptr.add(i));
+            let res0 = _mm256_add_ps(_mm256_add_ps(_mm256_add_ps(vx0, vy0), vz0), vw0);
+            _mm256_storeu_ps(out_ptr.add(i), res0);
+
+            let vx1 = _mm256_loadu_ps(x_ptr.add(i + 8));
+            let vy1 = _mm256_loadu_ps(y_ptr.add(i + 8));
+            let vz1 = _mm256_loadu_ps(z_ptr.add(i + 8));
+            let vw1 = _mm256_loadu_ps(w_ptr.add(i + 8));
+            let res1 = _mm256_add_ps(_mm256_add_ps(_mm256_add_ps(vx1, vy1), vz1), vw1);
+            _mm256_storeu_ps(out_ptr.add(i + 8), res1);
+
+            i += 16;
+        }
+
+        while i + 7 < len {
+            let vx = _mm256_loadu_ps(x_ptr.add(i));
+            let vy = _mm256_loadu_ps(y_ptr.add(i));
+            let vz = _mm256_loadu_ps(z_ptr.add(i));
+            let vw = _mm256_loadu_ps(w_ptr.add(i));
+            let res = _mm256_add_ps(_mm256_add_ps(_mm256_add_ps(vx, vy), vz), vw);
+            _mm256_storeu_ps(out_ptr.add(i), res);
+            i += 8;
+        }
+
+        while i < len {
+            *out_ptr.add(i) = *x_ptr.add(i) + *y_ptr.add(i) + *z_ptr.add(i) + *w_ptr.add(i);
+            i += 1;
+        }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        for i in 0..N {
+            out[i] = x[i] + y[i] + z[i] + w[i];
+        }
+    }
+}
+
+#[inline(always)]
+pub fn batch_add_4_cols_f32<const N: usize>(
+    x: &[f32; N],
+    y: &[f32; N],
+    z: &[f32; N],
+    w: &[f32; N],
+) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_add_4_cols_f32_into(x, y, z, w, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f32; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_mul_3_cols_f64_into<const N: usize>(
     x: &[f64; N],
     y: &[f64; N],
     z: &[f64; N],
@@ -852,6 +1081,30 @@ pub fn batch_mul_3_cols_f64<const N: usize>(
         let z_ptr = z.as_ptr();
         let out_ptr = out.as_mut_ptr();
 
+        while i + 15 < len {
+            let vx0 = _mm256_loadu_pd(x_ptr.add(i));
+            let vy0 = _mm256_loadu_pd(y_ptr.add(i));
+            let vz0 = _mm256_loadu_pd(z_ptr.add(i));
+            _mm256_storeu_pd(out_ptr.add(i), _mm256_mul_pd(_mm256_mul_pd(vx0, vy0), vz0));
+
+            let vx1 = _mm256_loadu_pd(x_ptr.add(i + 4));
+            let vy1 = _mm256_loadu_pd(y_ptr.add(i + 4));
+            let vz1 = _mm256_loadu_pd(z_ptr.add(i + 4));
+            _mm256_storeu_pd(out_ptr.add(i + 4), _mm256_mul_pd(_mm256_mul_pd(vx1, vy1), vz1));
+
+            let vx2 = _mm256_loadu_pd(x_ptr.add(i + 8));
+            let vy2 = _mm256_loadu_pd(y_ptr.add(i + 8));
+            let vz2 = _mm256_loadu_pd(z_ptr.add(i + 8));
+            _mm256_storeu_pd(out_ptr.add(i + 8), _mm256_mul_pd(_mm256_mul_pd(vx2, vy2), vz2));
+
+            let vx3 = _mm256_loadu_pd(x_ptr.add(i + 12));
+            let vy3 = _mm256_loadu_pd(y_ptr.add(i + 12));
+            let vz3 = _mm256_loadu_pd(z_ptr.add(i + 12));
+            _mm256_storeu_pd(out_ptr.add(i + 12), _mm256_mul_pd(_mm256_mul_pd(vx3, vy3), vz3));
+
+            i += 16;
+        }
+
         while i + 3 < len {
             let vx = _mm256_loadu_pd(x_ptr.add(i));
             let vy = _mm256_loadu_pd(y_ptr.add(i));
@@ -862,9 +1115,7 @@ pub fn batch_mul_3_cols_f64<const N: usize>(
         }
 
         while i < len {
-            out_ptr
-                .add(i)
-                .write(*x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i));
+            *out_ptr.add(i) = *x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i);
             i += 1;
         }
     }
@@ -876,8 +1127,20 @@ pub fn batch_mul_3_cols_f64<const N: usize>(
     }
 }
 
+pub fn batch_mul_3_cols_f64<const N: usize>(
+    x: &[f64; N],
+    y: &[f64; N],
+    z: &[f64; N],
+) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_mul_3_cols_f64_into(x, y, z, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f64; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
 #[inline(always)]
-pub fn batch_mul_4_cols_f64<const N: usize>(
+pub fn batch_mul_4_cols_f64_into<const N: usize>(
     x: &[f64; N],
     y: &[f64; N],
     z: &[f64; N],
@@ -895,6 +1158,22 @@ pub fn batch_mul_4_cols_f64<const N: usize>(
         let w_ptr = w.as_ptr();
         let out_ptr = out.as_mut_ptr();
 
+        while i + 7 < len {
+            let vx0 = _mm256_loadu_pd(x_ptr.add(i));
+            let vy0 = _mm256_loadu_pd(y_ptr.add(i));
+            let vz0 = _mm256_loadu_pd(z_ptr.add(i));
+            let vw0 = _mm256_loadu_pd(w_ptr.add(i));
+            _mm256_storeu_pd(out_ptr.add(i), _mm256_mul_pd(_mm256_mul_pd(_mm256_mul_pd(vx0, vy0), vz0), vw0));
+
+            let vx1 = _mm256_loadu_pd(x_ptr.add(i + 4));
+            let vy1 = _mm256_loadu_pd(y_ptr.add(i + 4));
+            let vz1 = _mm256_loadu_pd(z_ptr.add(i + 4));
+            let vw1 = _mm256_loadu_pd(w_ptr.add(i + 4));
+            _mm256_storeu_pd(out_ptr.add(i + 4), _mm256_mul_pd(_mm256_mul_pd(_mm256_mul_pd(vx1, vy1), vz1), vw1));
+
+            i += 8;
+        }
+
         while i + 3 < len {
             let vx = _mm256_loadu_pd(x_ptr.add(i));
             let vy = _mm256_loadu_pd(y_ptr.add(i));
@@ -906,9 +1185,7 @@ pub fn batch_mul_4_cols_f64<const N: usize>(
         }
 
         while i < len {
-            out_ptr
-                .add(i)
-                .write(*x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i) * *w_ptr.add(i));
+            *out_ptr.add(i) = *x_ptr.add(i) * *y_ptr.add(i) * *z_ptr.add(i) * *w_ptr.add(i);
             i += 1;
         }
     }
@@ -921,14 +1198,35 @@ pub fn batch_mul_4_cols_f64<const N: usize>(
 }
 
 #[inline(always)]
-pub fn batch_mul_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut [f64; N]) {
-    for i in 0..N {
-        out[i] = x[i] * y[i];
-    }
+pub fn batch_mul_4_cols_f64<const N: usize>(
+    x: &[f64; N],
+    y: &[f64; N],
+    z: &[f64; N],
+    w: &[f64; N],
+) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_mul_4_cols_f64_into(x, y, z, w, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f64; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
-pub fn batch_add_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut [f64; N]) {
+pub fn batch_mul_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N]) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    for i in 0..N {
+        out[i].write(x[i] * y[i]);
+    }
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_add_3_cols_f64_into<const N: usize>(
+    x: &[f64; N],
+    y: &[f64; N],
+    z: &[f64; N],
+    out: &mut [f64; N],
+) {
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     unsafe {
         use core::arch::x86_64::*;
@@ -936,7 +1234,149 @@ pub fn batch_add_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut 
         let len = N;
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
+        let z_ptr = z.as_ptr();
         let out_ptr = out.as_mut_ptr();
+
+        while i + 15 < len {
+            let vx0 = _mm256_loadu_pd(x_ptr.add(i));
+            let vy0 = _mm256_loadu_pd(y_ptr.add(i));
+            let vz0 = _mm256_loadu_pd(z_ptr.add(i));
+            _mm256_storeu_pd(out_ptr.add(i), _mm256_add_pd(_mm256_add_pd(vx0, vy0), vz0));
+
+            let vx1 = _mm256_loadu_pd(x_ptr.add(i + 4));
+            let vy1 = _mm256_loadu_pd(y_ptr.add(i + 4));
+            let vz1 = _mm256_loadu_pd(z_ptr.add(i + 4));
+            _mm256_storeu_pd(out_ptr.add(i + 4), _mm256_add_pd(_mm256_add_pd(vx1, vy1), vz1));
+
+            let vx2 = _mm256_loadu_pd(x_ptr.add(i + 8));
+            let vy2 = _mm256_loadu_pd(y_ptr.add(i + 8));
+            let vz2 = _mm256_loadu_pd(z_ptr.add(i + 8));
+            _mm256_storeu_pd(out_ptr.add(i + 8), _mm256_add_pd(_mm256_add_pd(vx2, vy2), vz2));
+
+            let vx3 = _mm256_loadu_pd(x_ptr.add(i + 12));
+            let vy3 = _mm256_loadu_pd(y_ptr.add(i + 12));
+            let vz3 = _mm256_loadu_pd(z_ptr.add(i + 12));
+            _mm256_storeu_pd(out_ptr.add(i + 12), _mm256_add_pd(_mm256_add_pd(vx3, vy3), vz3));
+
+            i += 16;
+        }
+
+        while i + 3 < len {
+            let vx = _mm256_loadu_pd(x_ptr.add(i));
+            let vy = _mm256_loadu_pd(y_ptr.add(i));
+            let vz = _mm256_loadu_pd(z_ptr.add(i));
+            let res = _mm256_add_pd(_mm256_add_pd(vx, vy), vz);
+            _mm256_storeu_pd(out_ptr.add(i), res);
+            i += 4;
+        }
+
+        while i < len {
+            *out_ptr.add(i) = *x_ptr.add(i) + *y_ptr.add(i) + *z_ptr.add(i);
+            i += 1;
+        }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        for i in 0..N {
+            out[i] = x[i] + y[i] + z[i];
+        }
+    }
+}
+
+pub fn batch_add_3_cols_f64<const N: usize>(
+    x: &[f64; N],
+    y: &[f64; N],
+    z: &[f64; N],
+) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_add_3_cols_f64_into(x, y, z, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f64; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_add_4_cols_f64_into<const N: usize>(
+    x: &[f64; N],
+    y: &[f64; N],
+    z: &[f64; N],
+    w: &[f64; N],
+    out: &mut [f64; N],
+) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut i = 0;
+        let len = N;
+        let x_ptr = x.as_ptr();
+        let y_ptr = y.as_ptr();
+        let z_ptr = z.as_ptr();
+        let w_ptr = w.as_ptr();
+        let out_ptr = out.as_mut_ptr();
+
+        while i + 7 < len {
+            let vx0 = _mm256_loadu_pd(x_ptr.add(i));
+            let vy0 = _mm256_loadu_pd(y_ptr.add(i));
+            let vz0 = _mm256_loadu_pd(z_ptr.add(i));
+            let vw0 = _mm256_loadu_pd(w_ptr.add(i));
+            _mm256_storeu_pd(out_ptr.add(i), _mm256_add_pd(_mm256_add_pd(_mm256_add_pd(vx0, vy0), vz0), vw0));
+
+            let vx1 = _mm256_loadu_pd(x_ptr.add(i + 4));
+            let vy1 = _mm256_loadu_pd(y_ptr.add(i + 4));
+            let vz1 = _mm256_loadu_pd(z_ptr.add(i + 4));
+            let vw1 = _mm256_loadu_pd(w_ptr.add(i + 4));
+            _mm256_storeu_pd(out_ptr.add(i + 4), _mm256_add_pd(_mm256_add_pd(_mm256_add_pd(vx1, vy1), vz1), vw1));
+
+            i += 8;
+        }
+
+        while i + 3 < len {
+            let vx = _mm256_loadu_pd(x_ptr.add(i));
+            let vy = _mm256_loadu_pd(y_ptr.add(i));
+            let vz = _mm256_loadu_pd(z_ptr.add(i));
+            let vw = _mm256_loadu_pd(w_ptr.add(i));
+            let res = _mm256_add_pd(_mm256_add_pd(_mm256_add_pd(vx, vy), vz), vw);
+            _mm256_storeu_pd(out_ptr.add(i), res);
+            i += 4;
+        }
+
+        while i < len {
+            *out_ptr.add(i) = *x_ptr.add(i) + *y_ptr.add(i) + *z_ptr.add(i) + *w_ptr.add(i);
+            i += 1;
+        }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        for i in 0..N {
+            out[i] = x[i] + y[i] + z[i] + w[i];
+        }
+    }
+}
+
+pub fn batch_add_4_cols_f64<const N: usize>(
+    x: &[f64; N],
+    y: &[f64; N],
+    z: &[f64; N],
+    w: &[f64; N],
+) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    batch_add_4_cols_f64_into(x, y, z, w, unsafe {
+        &mut *(out.as_mut_ptr() as *mut [f64; N])
+    });
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_add_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N]) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut i = 0;
+        let len = N;
+        let x_ptr = x.as_ptr();
+        let y_ptr = y.as_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f64;
 
         while i + 15 < len {
             let vx0 = _mm256_loadu_pd(x_ptr.add(i));
@@ -973,9 +1413,10 @@ pub fn batch_add_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut 
     #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     {
         for i in 0..N {
-            out[i] = x[i] + y[i];
+            out[i].write(x[i] + y[i]);
         }
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
@@ -983,8 +1424,8 @@ pub fn batch_fma_cols_f64<const N: usize>(
     x: &[f64; N],
     y: &[f64; N],
     z: &[f64; N],
-    out: &mut [f64; N],
-) {
+) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(
         target_arch = "x86_64",
         target_feature = "avx2",
@@ -997,7 +1438,7 @@ pub fn batch_fma_cols_f64<const N: usize>(
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
         let z_ptr = z.as_ptr();
-        let out_ptr = out.as_mut_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f64;
 
         while i + 15 < len {
             let vx0 = _mm256_loadu_pd(x_ptr.add(i));
@@ -1044,9 +1485,10 @@ pub fn batch_fma_cols_f64<const N: usize>(
     )))]
     {
         for i in 0..N {
-            out[i] = x[i].mul_add(y[i], z[i]);
+            out[i].write(x[i].mul_add(y[i], z[i]));
         }
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 // Slice versions
@@ -1100,10 +1542,12 @@ pub fn batch_fma_vec_f64(x: &[f64], y: &[f64], z: &[f64], out: &mut [f64]) {
 }
 
 #[inline(always)]
-pub fn batch_powf_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut [f32; N]) {
+pub fn batch_powf_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     for i in 0..N {
-        out[i] = x[i].powf(y[i]);
+        out[i].write(x[i].powf(y[i]));
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
@@ -1115,10 +1559,12 @@ pub fn batch_powf_vec_f32(x: &[f32], y: &[f32], out: &mut [f32]) {
 }
 
 #[inline(always)]
-pub fn batch_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut [f64; N]) {
+pub fn batch_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N]) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     for i in 0..N {
-        out[i] = x[i].powf(y[i]);
+        out[i].write(x[i].powf(y[i]));
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
@@ -1302,14 +1748,12 @@ mod tests {
         let z = [10.0, 10.0, 10.0, 10.0, 0.1, 0.1, 0.1, 0.1];
         let w = [2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0];
 
-        let mut res3 = [0.0; 8];
-        batch_mul_3_cols_f32(&x, &y, &z, &mut res3);
+        let res3 = batch_mul_3_cols_f32(&x, &y, &z);
         for i in 0..8 {
             assert_eq!(res3[i], x[i] * y[i] * z[i]);
         }
 
-        let mut res4 = [0.0; 8];
-        batch_mul_4_cols_f32(&x, &y, &z, &w, &mut res4);
+        let res4 = batch_mul_4_cols_f32(&x, &y, &z, &w);
         for i in 0..8 {
             assert_eq!(res4[i], x[i] * y[i] * z[i] * w[i]);
         }
@@ -1322,16 +1766,50 @@ mod tests {
         let z = [10.0, 10.0, 0.1, 0.1];
         let w = [2.0, 2.0, 1.0, 1.0];
 
-        let mut res3 = [0.0; 4];
-        batch_mul_3_cols_f64(&x, &y, &z, &mut res3);
+        let res3 = batch_mul_3_cols_f64(&x, &y, &z);
         for i in 0..4 {
             assert_eq!(res3[i], x[i] * y[i] * z[i]);
         }
 
-        let mut res4 = [0.0; 4];
-        batch_mul_4_cols_f64(&x, &y, &z, &w, &mut res4);
+        let res4 = batch_mul_4_cols_f64(&x, &y, &z, &w);
         for i in 0..4 {
             assert_eq!(res4[i], x[i] * y[i] * z[i] * w[i]);
+        }
+    }
+
+    #[test]
+    fn test_batch_add_multi_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let y = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+        let z = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0];
+        let w = [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0];
+
+        let res3 = batch_add_3_cols_f32(&x, &y, &z);
+        for i in 0..8 {
+            assert_eq!(res3[i], x[i] + y[i] + z[i]);
+        }
+
+        let res4 = batch_add_4_cols_f32(&x, &y, &z, &w);
+        for i in 0..8 {
+            assert_eq!(res4[i], x[i] + y[i] + z[i] + w[i]);
+        }
+    }
+
+    #[test]
+    fn test_batch_add_multi_cols_f64() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let y = [0.1, 0.2, 0.3, 0.4];
+        let z = [10.0, 20.0, 30.0, 40.0];
+        let w = [100.0, 200.0, 300.0, 400.0];
+
+        let res3 = batch_add_3_cols_f64(&x, &y, &z);
+        for i in 0..4 {
+            assert_eq!(res3[i], x[i] + y[i] + z[i]);
+        }
+
+        let res4 = batch_add_4_cols_f64(&x, &y, &z, &w);
+        for i in 0..4 {
+            assert_eq!(res4[i], x[i] + y[i] + z[i] + w[i]);
         }
     }
 }

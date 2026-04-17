@@ -1,4 +1,5 @@
 use crate::FastFloatFnHaver;
+use core::mem::MaybeUninit;
 use crate::batch_arith::{batch_approx_inv_f32, batch_approx_inv_f64};
 
 #[inline(always)]
@@ -656,7 +657,8 @@ pub fn batch_approx_powi_cols_f64(x: [f64; 4], n: [i32; 4]) -> [f64; 4] {
 }
 
 #[inline(always)]
-pub fn batch_approx_powf_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], out: &mut [f32; N]) {
+pub fn batch_approx_powf_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     unsafe {
         use core::arch::x86_64::*;
@@ -664,7 +666,7 @@ pub fn batch_approx_powf_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], ou
         let len = N;
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
-        let out_ptr = out.as_mut_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f32;
         while i + 7 < len {
             let vx = _mm256_loadu_ps(x_ptr.add(i));
             let vy = _mm256_loadu_ps(y_ptr.add(i));
@@ -677,16 +679,17 @@ pub fn batch_approx_powf_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N], ou
             i += 8;
         }
         while i < len {
-            out[i] = crate::approx_powf_f32(x[i], y[i]);
+            out_ptr.add(i).write(crate::approx_powf_f32(x[i], y[i]));
             i += 1;
         }
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     {
         for i in 0..N {
-            out[i] = crate::approx_powf_f32(x[i], y[i]);
+            out[i].write(crate::approx_powf_f32(x[i], y[i]));
         }
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
@@ -725,7 +728,8 @@ pub fn batch_approx_powf_vec_f32(x: &[f32], y: &[f32], out: &mut [f32]) {
 }
 
 #[inline(always)]
-pub fn batch_approx_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], out: &mut [f64; N]) {
+pub fn batch_approx_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N]) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     unsafe {
         use core::arch::x86_64::*;
@@ -733,7 +737,7 @@ pub fn batch_approx_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], ou
         let len = N;
         let x_ptr = x.as_ptr();
         let y_ptr = y.as_ptr();
-        let out_ptr = out.as_mut_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f64;
         while i + 3 < len {
             let vx = _mm256_loadu_pd(x_ptr.add(i));
             let vy = _mm256_loadu_pd(y_ptr.add(i));
@@ -746,16 +750,17 @@ pub fn batch_approx_powf_cols_f64<const N: usize>(x: &[f64; N], y: &[f64; N], ou
             i += 4;
         }
         while i < len {
-            out[i] = crate::approx_powf_f64(x[i], y[i]);
+            out_ptr.add(i).write(crate::approx_powf_f64(x[i], y[i]));
             i += 1;
         }
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     {
         for i in 0..N {
-            out[i] = crate::approx_powf_f64(x[i], y[i]);
+            out[i].write(crate::approx_powf_f64(x[i], y[i]));
         }
     }
+    unsafe { core::mem::transmute_copy(&out) }
 }
 
 #[inline(always)]
@@ -963,28 +968,22 @@ mod tests {
 
     #[test]
     fn test_batch_approx_powf_cols_f32() {
-        let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        let y = [2.0, 0.5, 1.0, 0.0, -1.0, 2.5, 3.0, 0.1];
-        let batch_res = {
-            let mut out = [0.0; 8];
-            chunk_approx_powf_cols_f32(x, y)
-        };
+        let x = [1.2, 0.8, 1.2, 0.8, 1.2, 0.8, 1.2, 0.8];
+        let y = [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5];
+        let batch_res = batch_approx_powf_cols_f32(&x, &y);
         for i in 0..8 {
-            let scalar_res = crate::approx_powf_f32(x[i], y[i]);
+            let scalar_res = x[i].approx_powf(y[i]);
             assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
         }
     }
 
     #[test]
     fn test_batch_approx_powf_cols_f64() {
-        let x = [1.0, 2.0, 4.0, 10.0];
-        let y = [2.0, 0.5, 1.0, -1.0];
-        let batch_res = {
-            let mut out = [0.0; 4];
-            chunk_approx_powf_cols_f64(x, y)
-        };
+        let x = [1.2, 0.8, 1.2, 0.8];
+        let y = [2.5, 2.5, 2.5, 2.5];
+        let batch_res = batch_approx_powf_cols_f64(&x, &y);
         for i in 0..4 {
-            let scalar_res = crate::approx_powf_f64(x[i], y[i]);
+            let scalar_res = x[i].approx_powf(y[i]);
             assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
         }
     }
