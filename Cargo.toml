@@ -23,5 +23,13 @@ name = "log_benches"
 harness = false
 
 [[bench]]
-name = "batch_benches"
+name = "batch_arith_benches"
+harness = false
+
+[[bench]]
+name = "batch_log_benches"
+harness = false
+
+[[bench]]
+name = "batch_trig_benches"
 harness = false

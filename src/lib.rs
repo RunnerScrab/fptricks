@@ -1,11 +1,17 @@
 #![allow(unused)]
 mod arithmetic;
-mod batch;
+// mod batch;
+mod batch_arith;
+mod batch_log;
+mod batch_trig;
 mod logarithmic;
 mod trigonometric;
 
 pub use arithmetic::*;
-pub use batch::*;
+// pub use batch::*;
+pub use batch_arith::*;
+pub use batch_log::*;
+pub use batch_trig::*;
 pub use logarithmic::*;
 pub use trigonometric::*;
 
