@@ -58,6 +58,63 @@ pub fn batch_approx_sin_cos_f32(x: [f32; 8]) -> ([f32; 8], [f32; 8]) {
 }
 
 #[inline(always)]
+pub fn batch4_approx_sin_cos_f32(x: [f32; 4]) -> ([f32; 4], [f32; 4]) {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x: __m128 = core::mem::transmute(x);
+
+        const TWO_PI: f32 = core::f32::consts::PI * 2.0;
+        const INV_2PI: f32 = 1.0 / TWO_PI;
+
+        let k = _mm_round_ps(
+            _mm_mul_ps(v_x, _mm_set1_ps(INV_2PI)),
+            _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC,
+        );
+        let x_red = _mm_fmadd_ps(k, _mm_set1_ps(-TWO_PI), v_x);
+        let x2 = _mm_mul_ps(x_red, x_red);
+
+        let s1 = _mm_fmadd_ps(
+            _mm_set1_ps(-0.00019841270),
+            x2,
+            _mm_set1_ps(0.008333333),
+        );
+        let s2 = _mm_fmadd_ps(s1, x2, _mm_set1_ps(-0.16666667));
+        let s3 = _mm_fmadd_ps(s2, x2, _mm_set1_ps(1.0));
+        let s = _mm_mul_ps(x_red, s3);
+
+        let c1 = _mm_fmadd_ps(
+            _mm_set1_ps(-0.0013888889),
+            x2,
+            _mm_set1_ps(0.041666668),
+        );
+        let c2 = _mm_fmadd_ps(c1, x2, _mm_set1_ps(-0.5));
+        let c = _mm_fmadd_ps(c2, x2, _mm_set1_ps(1.0));
+
+        core::mem::transmute((s, c))
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        let mut out_s = [0.0; 4];
+        let mut out_c = [0.0; 4];
+        for i in 0..4 {
+            let (s, c) = x[i].approx_sin_cos();
+            out_s[i] = s;
+            out_c[i] = c;
+        }
+        (out_s, out_c)
+    }
+}
+
+#[inline(always)]
 pub fn batch_approx_sin_cos_f64(x: [f64; 4]) -> ([f64; 4], [f64; 4]) {
     #[cfg(all(
         target_arch = "x86_64",
@@ -137,6 +194,17 @@ mod tests {
         let (batch_sin, batch_cos) = batch_approx_sin_cos_f64(input);
         for i in 0..4 {
             let (scalar_sin, scalar_cos) = crate::approx_sin_cos_f64(input[i]);
+            assert_eq!(batch_sin[i].to_bits(), scalar_sin.to_bits());
+            assert_eq!(batch_cos[i].to_bits(), scalar_cos.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_approx_sin_cos_f32() {
+        let input = [0.0, 1.0, 3.14159, -10.0];
+        let (batch_sin, batch_cos) = batch4_approx_sin_cos_f32(input);
+        for i in 0..4 {
+            let (scalar_sin, scalar_cos) = crate::approx_sin_cos_f32(input[i]);
             assert_eq!(batch_sin[i].to_bits(), scalar_sin.to_bits());
             assert_eq!(batch_cos[i].to_bits(), scalar_cos.to_bits());
         }

@@ -35,6 +35,39 @@ pub fn batch_approx_inv_f32(x: [f32; 8]) -> [f32; 8] {
 }
 
 #[inline(always)]
+pub fn batch4_approx_inv_f32(x: [f32; 4]) -> [f32; 4] {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x: __m128 = core::mem::transmute(x);
+        let bits = _mm_castps_si128(v_x);
+        let magic = _mm_set1_epi32(0x7EF127EA_u32 as i32);
+        let y0_bits = _mm_sub_epi32(magic, bits);
+        let v_y0 = _mm_castsi128_ps(y0_bits);
+
+        let res = _mm_mul_ps(v_y0, _mm_fnmadd_ps(v_x, v_y0, _mm_set1_ps(2.0)));
+
+        core::mem::transmute(res)
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].approx_inv();
+        }
+        out
+    }
+}
+
+#[inline(always)]
 pub fn batch_approx_inv_f64(x: [f64; 4]) -> [f64; 4] {
     #[cfg(all(
         target_arch = "x86_64",
@@ -92,6 +125,35 @@ pub fn batch_fmadd_cols_f32(x: [f32; 8], m: [f32; 8], a: [f32; 8]) -> [f32; 8] {
     {
         let mut out = [0.0; 8];
         for i in 0..8 {
+            out[i] = x[i].mul_add(m[i], a[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch4_fmadd_cols_f32(x: [f32; 4], m: [f32; 4], a: [f32; 4]) -> [f32; 4] {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x = _mm_loadu_ps(x.as_ptr());
+        let v_m = _mm_loadu_ps(m.as_ptr());
+        let v_a = _mm_loadu_ps(a.as_ptr());
+        let res = _mm_fmadd_ps(v_x, v_m, v_a);
+        core::mem::transmute(res)
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
             out[i] = x[i].mul_add(m[i], a[i]);
         }
         out
@@ -157,6 +219,35 @@ pub fn batch_fmadd_f32(x: [f32; 8], m: f32, a: f32) -> [f32; 8] {
 }
 
 #[inline(always)]
+pub fn batch4_fmadd_f32(x: [f32; 4], m: f32, a: f32) -> [f32; 4] {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x: __m128 = core::mem::transmute(x);
+        let v_m = _mm_set1_ps(m);
+        let v_a = _mm_set1_ps(a);
+        let res = _mm_fmadd_ps(v_x, v_m, v_a);
+        core::mem::transmute(res)
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].mul_add(m, a);
+        }
+        out
+    }
+}
+
+#[inline(always)]
 pub fn batch_asymmetric_fma_f32(x: [f32; 8], mode: f32, sigma_lo: f32, sigma_hi: f32) -> [f32; 8] {
     #[cfg(all(
         target_arch = "x86_64",
@@ -184,6 +275,41 @@ pub fn batch_asymmetric_fma_f32(x: [f32; 8], mode: f32, sigma_lo: f32, sigma_hi:
     {
         let mut out = [0.0; 8];
         for i in 0..8 {
+            let sigma = if x[i] < 0.0 { sigma_lo } else { sigma_hi };
+            out[i] = x[i].mul_add(sigma, mode);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch4_asymmetric_fma_f32(x: [f32; 4], mode: f32, sigma_lo: f32, sigma_hi: f32) -> [f32; 4] {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x: __m128 = core::mem::transmute(x);
+        let v_mode = _mm_set1_ps(mode);
+        let v_lo = _mm_set1_ps(sigma_lo);
+        let v_hi = _mm_set1_ps(sigma_hi);
+
+        let mask = _mm_cmp_ps(v_x, _mm_setzero_ps(), _CMP_LT_OQ);
+        let sigma = _mm_blendv_ps(v_hi, v_lo, mask);
+        let res = _mm_fmadd_ps(v_x, sigma, v_mode);
+
+        core::mem::transmute(res)
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
             let sigma = if x[i] < 0.0 { sigma_lo } else { sigma_hi };
             out[i] = x[i].mul_add(sigma, mode);
         }
@@ -224,6 +350,46 @@ pub fn batch_asymmetric_fma_cols_f32(
     {
         let mut out = [0.0; 8];
         for i in 0..8 {
+            let sigma = if x[i] < 0.0 { sigma_lo[i] } else { sigma_hi[i] };
+            out[i] = x[i].mul_add(sigma, mode[i]);
+        }
+        out
+    }
+}
+
+#[inline(always)]
+pub fn batch4_asymmetric_fma_cols_f32(
+    x: [f32; 4],
+    mode: [f32; 4],
+    sigma_lo: [f32; 4],
+    sigma_hi: [f32; 4],
+) -> [f32; 4] {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let v_x: __m128 = core::mem::transmute(x);
+        let v_mode: __m128 = core::mem::transmute(mode);
+        let v_lo: __m128 = core::mem::transmute(sigma_lo);
+        let v_hi: __m128 = core::mem::transmute(sigma_hi);
+
+        let mask = _mm_cmp_ps(v_x, _mm_setzero_ps(), _CMP_LT_OQ);
+        let sigma = _mm_blendv_ps(v_hi, v_lo, mask);
+        let res = _mm_fmadd_ps(v_x, sigma, v_mode);
+
+        core::mem::transmute(res)
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
             let sigma = if x[i] < 0.0 { sigma_lo[i] } else { sigma_hi[i] };
             out[i] = x[i].mul_add(sigma, mode[i]);
         }
@@ -686,6 +852,25 @@ pub fn batch_mul_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N
 }
 
 #[inline(always)]
+pub fn batch4_mul_cols_f32(x: [f32; 4], y: [f32; 4]) -> [f32; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let vx = _mm_loadu_ps(x.as_ptr());
+        let vy = _mm_loadu_ps(y.as_ptr());
+        core::mem::transmute(_mm_mul_ps(vx, vy))
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i] * y[i];
+        }
+        out
+    }
+}
+
+#[inline(always)]
 pub fn batch_add_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
     let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
@@ -744,6 +929,25 @@ pub fn batch_add_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N
 }
 
 #[inline(always)]
+pub fn batch4_add_cols_f32(x: [f32; 4], y: [f32; 4]) -> [f32; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let vx = _mm_loadu_ps(x.as_ptr());
+        let vy = _mm_loadu_ps(y.as_ptr());
+        core::mem::transmute(_mm_add_ps(vx, vy))
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i] + y[i];
+        }
+        out
+    }
+}
+
+#[inline(always)]
 pub fn batch_fma_cols_f32<const N: usize>(
     x: &[f32; N],
     y: &[f32; N],
@@ -754,6 +958,26 @@ pub fn batch_fma_cols_f32<const N: usize>(
         out[i].write(x[i].mul_add(y[i], z[i]));
     }
     unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch4_fma_cols_f32(x: [f32; 4], y: [f32; 4], z: [f32; 4]) -> [f32; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let vx = _mm_loadu_ps(x.as_ptr());
+        let vy = _mm_loadu_ps(y.as_ptr());
+        let vz = _mm_loadu_ps(z.as_ptr());
+        core::mem::transmute(_mm_fmadd_ps(vx, vy, vz))
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = x[i].mul_add(y[i], z[i]);
+        }
+        out
+    }
 }
 
 #[inline(always)]
@@ -1810,6 +2034,99 @@ mod tests {
         let res4 = batch_add_4_cols_f64(&x, &y, &z, &w);
         for i in 0..4 {
             assert_eq!(res4[i], x[i] + y[i] + z[i] + w[i]);
+        }
+    }
+
+    #[test]
+    fn test_batch4_approx_inv_f32() {
+        let input = [1.0, 2.0, 4.0, 8.0];
+        let batch_res = batch4_approx_inv_f32(input);
+        for i in 0..4 {
+            let scalar_res = input[i].approx_inv();
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_fmadd_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let m = [0.5, 0.5, 2.0, 2.0];
+        let a = [10.0, 10.0, 0.1, 0.1];
+        let batch_res = batch4_fmadd_cols_f32(x, m, a);
+        for i in 0..4 {
+            let scalar_res = x[i].mul_add(m[i], a[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_fmadd_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let m = 0.5;
+        let a = 10.0;
+        let batch_res = batch4_fmadd_f32(x, m, a);
+        for i in 0..4 {
+            let scalar_res = x[i].mul_add(m, a);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_asymmetric_fma_f32() {
+        let x = [-1.0, 1.0, -2.0, 2.0];
+        let mode = 10.0;
+        let lo = 0.5;
+        let hi = 2.0;
+        let batch_res = batch4_asymmetric_fma_f32(x, mode, lo, hi);
+        for i in 0..4 {
+            let sigma = if x[i] < 0.0 { lo } else { hi };
+            let scalar_res = x[i].mul_add(sigma, mode);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_asymmetric_fma_cols_f32() {
+        let x = [-1.0, 1.0, -2.0, 2.0];
+        let mode = [10.0, 20.0, 30.0, 40.0];
+        let lo = [0.5, 0.6, 0.7, 0.8];
+        let hi = [2.0, 3.0, 4.0, 5.0];
+        let batch_res = batch4_asymmetric_fma_cols_f32(x, mode, lo, hi);
+        for i in 0..4 {
+            let sigma = if x[i] < 0.0 { lo[i] } else { hi[i] };
+            let scalar_res = x[i].mul_add(sigma, mode[i]);
+            assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_mul_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let y = [0.5, 0.5, 2.0, 2.0];
+        let batch_res = batch4_mul_cols_f32(x, y);
+        for i in 0..4 {
+            assert_eq!(batch_res[i].to_bits(), (x[i] * y[i]).to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_add_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let y = [0.5, 0.5, 2.0, 2.0];
+        let batch_res = batch4_add_cols_f32(x, y);
+        for i in 0..4 {
+            assert_eq!(batch_res[i].to_bits(), (x[i] + y[i]).to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch4_fma_cols_f32() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let y = [0.5, 0.5, 2.0, 2.0];
+        let z = [10.0, 10.0, 0.1, 0.1];
+        let batch_res = batch4_fma_cols_f32(x, y, z);
+        for i in 0..4 {
+            assert_eq!(batch_res[i].to_bits(), x[i].mul_add(y[i], z[i]).to_bits());
         }
     }
 }
