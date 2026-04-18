@@ -468,7 +468,7 @@ fn bench_batch_arithmetic(c: &mut Criterion) {
         b.iter(|| {
             let xi = black_box(x_f32);
             let yi = black_box(y_f32);
-            batch_mul_cols_f32(xi, yi, &mut out);
+            out = batch_mul_cols_f32(xi, yi);
             black_box(out[0])
         })
     });
@@ -487,7 +487,7 @@ fn bench_batch_arithmetic(c: &mut Criterion) {
         b.iter(|| {
             let xi = black_box(x_f32);
             let yi = black_box(y_f32);
-            batch_add_cols_f32(xi, yi, &mut out);
+            out = batch_add_cols_f32(xi, yi);
             black_box(out[0])
         })
     });
@@ -507,7 +507,7 @@ fn bench_batch_arithmetic(c: &mut Criterion) {
             let xi = black_box(x_f32);
             let yi = black_box(y_f32);
             let zi = black_box(z_f32);
-            batch_fma_cols_f32(xi, yi, zi, &mut out);
+            out = batch_fma_cols_f32(xi, yi, zi);
             black_box(out[0])
         })
     });
@@ -528,7 +528,7 @@ fn bench_batch_arithmetic(c: &mut Criterion) {
         b.iter(|| {
             let xi = black_box(x_f64);
             let yi = black_box(y_f64);
-            batch_mul_cols_f64(xi, yi, &mut out);
+            out = batch_mul_cols_f64(xi, yi);
             black_box(out[0])
         })
     });
@@ -547,7 +547,7 @@ fn bench_batch_arithmetic(c: &mut Criterion) {
         b.iter(|| {
             let xi = black_box(x_f64);
             let yi = black_box(y_f64);
-            batch_add_cols_f64(xi, yi, &mut out);
+            out = batch_add_cols_f64(xi, yi);
             black_box(out[0])
         })
     });
@@ -567,7 +567,7 @@ fn bench_batch_arithmetic(c: &mut Criterion) {
             let xi = black_box(x_f64);
             let yi = black_box(y_f64);
             let zi = black_box(z_f64);
-            batch_fma_cols_f64(xi, yi, zi, &mut out);
+            out = batch_fma_cols_f64(xi, yi, zi);
             black_box(out[0])
         })
     });

@@ -1,90 +1,6 @@
 use crate::FastFloatFnHaver;
 
 #[inline(always)]
-pub(crate) fn fast_mul2_f32(x: f32) -> f32 {
-    const ONEEXP: u32 = 1 << 23;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
-    let adj = (mask as u32) & ONEEXP;
-    f32::from_bits(bits.saturating_add(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_div2_f32(x: f32) -> f32 {
-    const ONEEXP: u32 = 1 << 23;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
-    let adj = (mask as u32) & ONEEXP;
-    f32::from_bits(bits.saturating_sub(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul2_f64(x: f64) -> f64 {
-    const ONEEXP: u64 = 1 << 52;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
-    let adj = (mask as u64) & ONEEXP;
-    f64::from_bits(bits.saturating_add(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_div2_f64(x: f64) -> f64 {
-    const ONEEXP: u64 = 1 << 52;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
-    let adj = (mask as u64) & ONEEXP;
-    f64::from_bits(bits.saturating_sub(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul3_f64(x: f64) -> f64 {
-    //The standard operation is faster than any trick we might do,
-    //but this is here so the user doesn't have to look it up
-    x * 3.0
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul4_f32(x: f32) -> f32 {
-    const TWOEXP: u32 = 2 << 23;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
-    let adj = (mask as u32) & TWOEXP;
-    f32::from_bits(bits.saturating_add(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul4_f64(x: f64) -> f64 {
-    const TWOEXP: u64 = 2 << 52;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
-    let adj = (mask as u64) & TWOEXP;
-    f64::from_bits(bits.saturating_add(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul8_f32(x: f32) -> f32 {
-    const THREEEXP: u32 = 3 << 23;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
-    let adj = (mask as u32) & THREEEXP;
-    f32::from_bits(bits.saturating_add(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul8_f64(x: f64) -> f64 {
-    const THREEEXP: u64 = 3 << 52;
-    let bits = x.to_bits();
-    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
-    let adj = (mask as u64) & THREEEXP;
-    f64::from_bits(bits.saturating_add(adj))
-}
-
-#[inline(always)]
-pub(crate) fn fast_mul3_f32(x: f32) -> f32 {
-    3.0 * x
-}
-
-#[inline(always)]
 /// Approximates 1/x for f32 (positive x).
 ///
 /// Computes a bit-manipulation seed `y₀ = 0x7EF127EA - bits(x)`, which
@@ -92,7 +8,7 @@ pub(crate) fn fast_mul3_f32(x: f32) -> f32 {
 /// `y₁ = y₀·(2 − x·y₀)`.
 ///
 /// **Measured relative error (over a representative sample):** 0.045% – 0.34%
-pub(crate) fn approx_inv_f32(x: f32) -> f32 {
+pub fn approx_inv_f32(x: f32) -> f32 {
     // Bit-magic seed: interpret bits as y₀ ≈ 1/x
     let y0 = f32::from_bits(0x7EF127EA_u32.wrapping_sub(x.to_bits()));
     // One Newton-Raphson step
@@ -107,7 +23,7 @@ pub(crate) fn approx_inv_f32(x: f32) -> f32 {
 /// the f32 variant.
 ///
 /// **Measured relative error (over a representative sample):** 8.8×10⁻⁵% – 6.5×10⁻⁴%
-pub(crate) fn approx_inv_f64(x: f64) -> f64 {
+pub fn approx_inv_f64(x: f64) -> f64 {
     // Bit-magic seed adapted for f64 biases
     let y0 = f64::from_bits(0x7FDE623822835EEA_u64.wrapping_sub(x.to_bits()));
     // Two Newton-Raphson steps
@@ -118,39 +34,6 @@ pub(crate) fn approx_inv_f64(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_arithmetic() {
-        let x = 2.0_f32;
-        assert_eq!(fast_mul2_f32(x), 4.0);
-        assert_eq!(fast_div2_f32(4.0), 2.0);
-        assert_eq!(fast_mul4_f32(x), 8.0);
-        assert_eq!(fast_mul8_f32(x), 16.0);
-        assert_eq!(fast_mul3_f32(x), 6.0);
-
-        // Edge cases f32
-        assert_eq!(fast_mul2_f32(0.0).to_bits(), 0.0f32.to_bits());
-        assert_eq!(fast_mul2_f32(-0.0).to_bits(), (-0.0f32).to_bits());
-        assert_eq!(fast_div2_f32(0.0).to_bits(), 0.0f32.to_bits());
-        assert_eq!(fast_div2_f32(-0.0).to_bits(), (-0.0f32).to_bits());
-        assert_eq!(fast_mul2_f32(-1.0), -2.0);
-        assert_eq!(fast_div2_f32(-2.0), -1.0);
-
-        let x64 = 2.0_f64;
-        assert_eq!(fast_mul2_f64(x64), 4.0);
-        assert_eq!(fast_div2_f64(4.0), 2.0);
-        assert_eq!(fast_mul4_f64(x64), 8.0);
-        assert_eq!(fast_mul8_f64(x64), 16.0);
-        assert_eq!(fast_mul3_f64(x64), 6.0);
-
-        // Edge cases f64
-        assert_eq!(fast_mul2_f64(0.0).to_bits(), 0.0f64.to_bits());
-        assert_eq!(fast_mul2_f64(-0.0).to_bits(), (-0.0f64).to_bits());
-        assert_eq!(fast_div2_f64(0.0).to_bits(), 0.0f64.to_bits());
-        assert_eq!(fast_div2_f64(-0.0).to_bits(), (-0.0f64).to_bits());
-        assert_eq!(fast_mul2_f64(-1.0), -2.0);
-        assert_eq!(fast_div2_f64(-2.0), -1.0);
-    }
 
     #[test]
     fn test_approx_inv() {

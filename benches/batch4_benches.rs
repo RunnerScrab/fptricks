@@ -101,6 +101,16 @@ fn bench_batch4_transcendental(c: &mut Criterion) {
         b.iter(|| batch_approx_powi_cols_f64(black_box(x_f64), black_box(n_f64)))
     });
 
+    // POWF (vector-vector)
+    group.bench_function("powf_cols_batch4_f32", |b| {
+        b.iter(|| chunk4_approx_powf_cols_f32(black_box(x4), black_box(y4)))
+    });
+    group.bench_function("powf_cols_batch_f64", |b| {
+        let x_f64 = [1.2, 0.8, 1.5, 0.5];
+        let y_f64 = [2.5, 2.5, 2.5, 2.5];
+        b.iter(|| chunk_approx_powf_cols_f64(black_box(x_f64), black_box(y_f64)))
+    });
+
     group.finish();
 }
 

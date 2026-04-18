@@ -16,11 +16,6 @@ pub use logarithmic::*;
 pub use trigonometric::*;
 
 pub trait FastFloatFnHaver: Sized {
-    fn fast_mul2(self) -> Self;
-    fn fast_div2(self) -> Self;
-    fn fast_mul3(self) -> Self;
-    fn fast_mul4(self) -> Self;
-    fn fast_mul8(self) -> Self;
     fn approx_exp(self) -> Self;
     fn approx_ln(self) -> Self;
     ///Faster only for f64
@@ -40,31 +35,6 @@ pub trait FastFloatFnHaver: Sized {
 }
 
 impl FastFloatFnHaver for f32 {
-    #[inline(always)]
-    fn fast_mul2(self) -> Self {
-        arithmetic::fast_mul2_f32(self)
-    }
-
-    #[inline(always)]
-    fn fast_div2(self) -> Self {
-        arithmetic::fast_div2_f32(self)
-    }
-
-    #[inline(always)]
-    fn fast_mul3(self) -> Self {
-        3.0 * self
-    }
-
-    #[inline(always)]
-    fn fast_mul4(self) -> Self {
-        arithmetic::fast_mul4_f32(self)
-    }
-
-    #[inline(always)]
-    fn fast_mul8(self) -> Self {
-        arithmetic::fast_mul8_f32(self)
-    }
-
     #[inline(always)]
     fn approx_exp(self) -> Self {
         //Slower logarithmic::approx_exp_f32(self)
@@ -136,31 +106,6 @@ impl FastFloatFnHaver for f32 {
 }
 
 impl FastFloatFnHaver for f64 {
-    #[inline(always)]
-    fn fast_mul2(self) -> Self {
-        arithmetic::fast_mul2_f64(self)
-    }
-
-    #[inline(always)]
-    fn fast_div2(self) -> Self {
-        arithmetic::fast_div2_f64(self)
-    }
-
-    #[inline(always)]
-    fn fast_mul3(self) -> Self {
-        3.0 * self
-    }
-
-    #[inline(always)]
-    fn fast_mul4(self) -> Self {
-        arithmetic::fast_mul4_f64(self)
-    }
-
-    #[inline(always)]
-    fn fast_mul8(self) -> Self {
-        arithmetic::fast_mul8_f64(self)
-    }
-
     #[inline(always)]
     fn approx_exp(self) -> Self {
         logarithmic::approx_exp_f64(self)
