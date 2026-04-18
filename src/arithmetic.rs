@@ -3,25 +3,37 @@ use crate::FastFloatFnHaver;
 #[inline(always)]
 pub(crate) fn fast_mul2_f32(x: f32) -> f32 {
     const ONEEXP: u32 = 1 << 23;
-    f32::from_bits(x.to_bits().saturating_add(ONEEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
+    let adj = (mask as u32) & ONEEXP;
+    f32::from_bits(bits.saturating_add(adj))
 }
 
 #[inline(always)]
 pub(crate) fn fast_div2_f32(x: f32) -> f32 {
     const ONEEXP: u32 = 1 << 23;
-    f32::from_bits(x.to_bits().saturating_sub(ONEEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
+    let adj = (mask as u32) & ONEEXP;
+    f32::from_bits(bits.saturating_sub(adj))
 }
 
 #[inline(always)]
 pub(crate) fn fast_mul2_f64(x: f64) -> f64 {
     const ONEEXP: u64 = 1 << 52;
-    f64::from_bits(x.to_bits().saturating_add(ONEEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
+    let adj = (mask as u64) & ONEEXP;
+    f64::from_bits(bits.saturating_add(adj))
 }
 
 #[inline(always)]
 pub(crate) fn fast_div2_f64(x: f64) -> f64 {
     const ONEEXP: u64 = 1 << 52;
-    f64::from_bits(x.to_bits().saturating_sub(ONEEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
+    let adj = (mask as u64) & ONEEXP;
+    f64::from_bits(bits.saturating_sub(adj))
 }
 
 #[inline(always)]
@@ -34,25 +46,37 @@ pub(crate) fn fast_mul3_f64(x: f64) -> f64 {
 #[inline(always)]
 pub(crate) fn fast_mul4_f32(x: f32) -> f32 {
     const TWOEXP: u32 = 2 << 23;
-    f32::from_bits(x.to_bits().saturating_add(TWOEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
+    let adj = (mask as u32) & TWOEXP;
+    f32::from_bits(bits.saturating_add(adj))
 }
 
 #[inline(always)]
 pub(crate) fn fast_mul4_f64(x: f64) -> f64 {
     const TWOEXP: u64 = 2 << 52;
-    f64::from_bits(x.to_bits().saturating_add(TWOEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
+    let adj = (mask as u64) & TWOEXP;
+    f64::from_bits(bits.saturating_add(adj))
 }
 
 #[inline(always)]
 pub(crate) fn fast_mul8_f32(x: f32) -> f32 {
     const THREEEXP: u32 = 3 << 23;
-    f32::from_bits(x.to_bits().saturating_add(THREEEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFF).wrapping_neg() as i32) >> 31;
+    let adj = (mask as u32) & THREEEXP;
+    f32::from_bits(bits.saturating_add(adj))
 }
 
 #[inline(always)]
 pub(crate) fn fast_mul8_f64(x: f64) -> f64 {
     const THREEEXP: u64 = 3 << 52;
-    f64::from_bits(x.to_bits().saturating_add(THREEEXP))
+    let bits = x.to_bits();
+    let mask = ((bits & 0x7FFFFFFFFFFFFFFF).wrapping_neg() as i64) >> 63;
+    let adj = (mask as u64) & THREEEXP;
+    f64::from_bits(bits.saturating_add(adj))
 }
 
 #[inline(always)]
@@ -104,12 +128,28 @@ mod tests {
         assert_eq!(fast_mul8_f32(x), 16.0);
         assert_eq!(fast_mul3_f32(x), 6.0);
 
+        // Edge cases f32
+        assert_eq!(fast_mul2_f32(0.0).to_bits(), 0.0f32.to_bits());
+        assert_eq!(fast_mul2_f32(-0.0).to_bits(), (-0.0f32).to_bits());
+        assert_eq!(fast_div2_f32(0.0).to_bits(), 0.0f32.to_bits());
+        assert_eq!(fast_div2_f32(-0.0).to_bits(), (-0.0f32).to_bits());
+        assert_eq!(fast_mul2_f32(-1.0), -2.0);
+        assert_eq!(fast_div2_f32(-2.0), -1.0);
+
         let x64 = 2.0_f64;
         assert_eq!(fast_mul2_f64(x64), 4.0);
         assert_eq!(fast_div2_f64(4.0), 2.0);
         assert_eq!(fast_mul4_f64(x64), 8.0);
         assert_eq!(fast_mul8_f64(x64), 16.0);
         assert_eq!(fast_mul3_f64(x64), 6.0);
+
+        // Edge cases f64
+        assert_eq!(fast_mul2_f64(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(fast_mul2_f64(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(fast_div2_f64(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(fast_div2_f64(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(fast_mul2_f64(-1.0), -2.0);
+        assert_eq!(fast_div2_f64(-2.0), -1.0);
     }
 
     #[test]
