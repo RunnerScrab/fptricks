@@ -3,6 +3,9 @@ mod arithmetic;
 mod batch_arith;
 mod batch_log;
 mod batch_trig;
+mod raw_batch_arith;
+mod raw_batch_log;
+mod raw_batch_trig;
 mod logarithmic;
 mod trigonometric;
 
@@ -11,6 +14,9 @@ pub use arithmetic::*;
 pub use batch_arith::*;
 pub use batch_log::*;
 pub use batch_trig::*;
+pub use raw_batch_arith::*;
+pub use raw_batch_log::*;
+pub use raw_batch_trig::*;
 pub use logarithmic::*;
 pub use trigonometric::*;
 
