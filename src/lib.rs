@@ -1,6 +1,5 @@
 #![allow(unused)]
 mod arithmetic;
-// mod batch;
 mod batch_arith;
 mod batch_log;
 mod batch_trig;

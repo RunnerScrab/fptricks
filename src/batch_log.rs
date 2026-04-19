@@ -1,6 +1,44 @@
 use crate::FastFloatFnHaver;
 use core::mem::MaybeUninit;
 use crate::batch_arith::{batch_approx_inv_f32, batch_approx_inv_f64, batch4_approx_inv_f32};
+use core::arch::x86_64::*;
+
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
+#[inline(always)]
+pub fn raw_batch_ln_f32(v: __m256) -> __m256 {
+    unsafe {
+        // Extract the exponent: ln(x) = ln(m * 2^exp) = ln(m) + exp * ln(2)
+        // Bit-shift right by 23 to get exponent bits to the bottom
+        let bits = _mm256_castps_si256(v);
+        let shifted = _mm256_srli_epi32(bits, 23);
+        let exp_int = _mm256_sub_epi32(shifted, _mm256_set1_epi32(127));
+        let exp_f32 = _mm256_cvtepi32_ps(exp_int);
+
+        // Extract the mantissa (force exponent bits to 127 to get range [1.0, 2.0))
+        let mask = _mm256_set1_epi32(0x007FFFFF);
+        let c_3f80 = _mm256_set1_epi32(0x3F800000);
+        let m_bits = _mm256_or_si256(_mm256_and_si256(bits, mask), c_3f80);
+        let mantissa = _mm256_castsi256_ps(m_bits);
+
+        // Polynomial approximation for ln(m) where m is in [1, 2]
+        // Note: For higher precision, you can add more terms here.
+        let m_adj = _mm256_sub_ps(mantissa, _mm256_set1_ps(1.0));
+        
+        let neg_one_half = _mm256_set1_ps(-1.0/3.0);
+        let c_1 = _mm256_set1_ps(1.0);
+        
+        let inner = _mm256_fmadd_ps(neg_one_half, m_adj, c_1);
+        let ln_mantissa = _mm256_mul_ps(m_adj, inner);
+
+        // Combine: exp * ln(2) + ln(mantissa)
+        let ln_2 = _mm256_set1_ps(core::f32::consts::LN_2);
+        _mm256_fmadd_ps(exp_f32, ln_2, ln_mantissa)
+    }
+}
 
 #[inline(always)]
 pub fn batch_approx_ln_f32(x: [f32; 8]) -> [f32; 8] {
@@ -12,27 +50,7 @@ pub fn batch_approx_ln_f32(x: [f32; 8]) -> [f32; 8] {
     unsafe {
         use core::arch::x86_64::*;
         let v: __m256 = core::mem::transmute(x);
-
-        let bits = _mm256_castps_si256(v);
-        let shifted = _mm256_srli_epi32(bits, 23);
-        let exp_int = _mm256_sub_epi32(shifted, _mm256_set1_epi32(127));
-        let exp_f32 = _mm256_cvtepi32_ps(exp_int);
-
-        let mask = _mm256_set1_epi32(0x007FFFFF);
-        let c_3f80 = _mm256_set1_epi32(0x3F800000);
-        let m_bits = _mm256_or_si256(_mm256_and_si256(bits, mask), c_3f80);
-        let mantissa = _mm256_castsi256_ps(m_bits);
-
-        let m_adj = _mm256_sub_ps(mantissa, _mm256_set1_ps(1.0));
-
-        let neg_one_third = _mm256_set1_ps(-1.0 / 3.0);
-        let c_1 = _mm256_set1_ps(1.0);
-        let inner = _mm256_fmadd_ps(neg_one_third, m_adj, c_1);
-        let ln_mantissa = _mm256_mul_ps(m_adj, inner);
-
-        let ln_2 = _mm256_set1_ps(core::f32::consts::LN_2);
-        let res = _mm256_fmadd_ps(exp_f32, ln_2, ln_mantissa);
-
+        let res = raw_batch_ln_f32(v);
         core::mem::transmute(res)
     }
     #[cfg(not(all(
@@ -348,16 +366,14 @@ pub fn batch4_approx_powf_f32(x: f32, y: [f32; 4]) -> [f32; 4] {
     }
 }
 
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[inline(always)]
-pub fn batch_approx_ln_f64(x: [f64; 4]) -> [f64; 4] {
-    #[cfg(all(
-        target_arch = "x86_64",
-        target_feature = "avx2",
-        target_feature = "fma"
-    ))]
+pub fn raw_batch_ln_f64(v: __m256d) -> __m256d {
     unsafe {
-        use core::arch::x86_64::*;
-        let v: __m256d = core::mem::transmute(x);
 
         let bits = _mm256_castpd_si256(v);
         let exp_shifted = _mm256_srli_epi64(bits, 52);
@@ -382,9 +398,20 @@ pub fn batch_approx_ln_f64(x: [f64; 4]) -> [f64; 4] {
         let ln_mantissa = _mm256_mul_pd(m_adj, inner);
 
         let ln_2 = _mm256_set1_pd(core::f64::consts::LN_2);
-        let res = _mm256_fmadd_pd(exp_f64, ln_2, ln_mantissa);
+         _mm256_fmadd_pd(exp_f64, ln_2, ln_mantissa)
+    }
+}
 
-        core::mem::transmute(res)
+#[inline(always)]
+pub fn batch_approx_ln_f64(x: [f64; 4]) -> [f64; 4] {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        let v: __m256d = core::mem::transmute(x);
+        core::mem::transmute(raw_batch_ln_f64(v)) 
     }
     #[cfg(not(all(
         target_arch = "x86_64",
