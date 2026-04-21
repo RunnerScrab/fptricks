@@ -783,6 +783,59 @@ pub fn batch_sum_u64(data: &[u64]) -> u64 {
 }
 
 #[inline(always)]
+pub fn batch_div_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    unsafe {
+        use core::arch::x86_64::*;
+        let mut i = 0;
+        let len = N;
+        let x_ptr = x.as_ptr();
+        let y_ptr = y.as_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f32;
+
+        while i + 31 < len {
+            let vx0 = _mm256_loadu_ps(x_ptr.add(i));
+            let vy0 = _mm256_loadu_ps(y_ptr.add(i));
+            _mm256_storeu_ps(out_ptr.add(i), _mm256_div_ps(vx0, vy0));
+
+            let vx1 = _mm256_loadu_ps(x_ptr.add(i + 8));
+            let vy1 = _mm256_loadu_ps(y_ptr.add(i + 8));
+            _mm256_storeu_ps(out_ptr.add(i + 8), _mm256_div_ps(vx1, vy1));
+
+            let vx2 = _mm256_loadu_ps(x_ptr.add(i + 16));
+            let vy2 = _mm256_loadu_ps(y_ptr.add(i + 16));
+            _mm256_storeu_ps(out_ptr.add(i + 16), _mm256_div_ps(vx2, vy2));
+
+            let vx3 = _mm256_loadu_ps(x_ptr.add(i + 24));
+            let vy3 = _mm256_loadu_ps(y_ptr.add(i + 24));
+            _mm256_storeu_ps(out_ptr.add(i + 24), _mm256_div_ps(vx3, vy3));
+
+            i += 32;
+        }
+
+        while i + 7 < len {
+            let vx = _mm256_loadu_ps(x_ptr.add(i));
+            let vy = _mm256_loadu_ps(y_ptr.add(i));
+            _mm256_storeu_ps(out_ptr.add(i), _mm256_div_ps(vx, vy));
+            i += 8;
+        }
+
+        while i < len {
+            out_ptr.add(i).write(*x_ptr.add(i) / *y_ptr.add(i));
+            i += 1;
+        }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    {
+        for i in 0..N {
+            out[i].write(x[i] / y[i]);
+        }
+    }
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
 pub fn batch_mul_cols_f32<const N: usize>(x: &[f32; N], y: &[f32; N]) -> [f32; N] {
     let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]

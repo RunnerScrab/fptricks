@@ -6,7 +6,7 @@ use core::arch::x86_64::*;
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_approx_inv_f32(v_x: __m256) -> __m256 {
+pub fn raw_batch_approx_inv_f32(v_x: __m256) -> __m256 {
     unsafe {
         let bits = _mm256_castps_si256(v_x);
         let magic = _mm256_set1_epi32(0x7EF127EA_u32 as i32);
@@ -23,7 +23,7 @@ pub unsafe fn raw_batch_approx_inv_f32(v_x: __m256) -> __m256 {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_approx_inv_f32(v_x: __m128) -> __m128 {
+pub fn raw_batch4_approx_inv_f32(v_x: __m128) -> __m128 {
     unsafe {
         let bits = _mm_castps_si128(v_x);
         let magic = _mm_set1_epi32(0x7EF127EA_u32 as i32);
@@ -40,7 +40,7 @@ pub unsafe fn raw_batch4_approx_inv_f32(v_x: __m128) -> __m128 {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_approx_inv_f64(v_x: __m256d) -> __m256d {
+pub fn raw_batch_approx_inv_f64(v_x: __m256d) -> __m256d {
     unsafe {
         let bits = _mm256_castpd_si256(v_x);
         let magic = _mm256_set1_epi64x(0x7FDE623822835EEA_u64 as i64);
@@ -59,7 +59,7 @@ pub unsafe fn raw_batch_approx_inv_f64(v_x: __m256d) -> __m256d {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_fmadd_cols_f32(v_x: __m256, v_m: __m256, v_a: __m256) -> __m256 {
+pub fn raw_batch_fmadd_cols_f32(v_x: __m256, v_m: __m256, v_a: __m256) -> __m256 {
     unsafe { _mm256_fmadd_ps(v_x, v_m, v_a) }
 }
 
@@ -69,7 +69,7 @@ pub unsafe fn raw_batch_fmadd_cols_f32(v_x: __m256, v_m: __m256, v_a: __m256) ->
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_fmadd_cols_f32(v_x: __m128, v_m: __m128, v_a: __m128) -> __m128 {
+pub fn raw_batch4_fmadd_cols_f32(v_x: __m128, v_m: __m128, v_a: __m128) -> __m128 {
     unsafe { _mm_fmadd_ps(v_x, v_m, v_a) }
 }
 
@@ -79,7 +79,7 @@ pub unsafe fn raw_batch4_fmadd_cols_f32(v_x: __m128, v_m: __m128, v_a: __m128) -
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_fmadd_cols_f64(v_x: __m256d, v_m: __m256d, v_a: __m256d) -> __m256d {
+pub fn raw_batch_fmadd_cols_f64(v_x: __m256d, v_m: __m256d, v_a: __m256d) -> __m256d {
     unsafe { _mm256_fmadd_pd(v_x, v_m, v_a) }
 }
 
@@ -89,7 +89,7 @@ pub unsafe fn raw_batch_fmadd_cols_f64(v_x: __m256d, v_m: __m256d, v_a: __m256d)
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_fmadd_f32(v_x: __m256, m: f32, a: f32) -> __m256 {
+pub fn raw_batch_fmadd_f32(v_x: __m256, m: f32, a: f32) -> __m256 {
     unsafe {
         let v_m = _mm256_set1_ps(m);
         let v_a = _mm256_set1_ps(a);
@@ -103,7 +103,7 @@ pub unsafe fn raw_batch_fmadd_f32(v_x: __m256, m: f32, a: f32) -> __m256 {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_fmadd_f32(v_x: __m128, m: f32, a: f32) -> __m128 {
+pub fn raw_batch4_fmadd_f32(v_x: __m128, m: f32, a: f32) -> __m128 {
     unsafe {
         let v_m = _mm_set1_ps(m);
         let v_a = _mm_set1_ps(a);
@@ -117,7 +117,7 @@ pub unsafe fn raw_batch4_fmadd_f32(v_x: __m128, m: f32, a: f32) -> __m128 {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_asymmetric_fma_f32(v_x: __m256, mode: f32, sigma_lo: f32, sigma_hi: f32) -> __m256 {
+pub fn raw_batch_asymmetric_fma_f32(v_x: __m256, mode: f32, sigma_lo: f32, sigma_hi: f32) -> __m256 {
     unsafe {
         let v_mode = _mm256_set1_ps(mode);
         let v_lo = _mm256_set1_ps(sigma_lo);
@@ -135,7 +135,7 @@ pub unsafe fn raw_batch_asymmetric_fma_f32(v_x: __m256, mode: f32, sigma_lo: f32
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_asymmetric_fma_f32(v_x: __m128, mode: f32, sigma_lo: f32, sigma_hi: f32) -> __m128 {
+pub fn raw_batch4_asymmetric_fma_f32(v_x: __m128, mode: f32, sigma_lo: f32, sigma_hi: f32) -> __m128 {
     unsafe {
         let v_mode = _mm_set1_ps(mode);
         let v_lo = _mm_set1_ps(sigma_lo);
@@ -153,7 +153,7 @@ pub unsafe fn raw_batch4_asymmetric_fma_f32(v_x: __m128, mode: f32, sigma_lo: f3
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_asymmetric_fma_cols_f32(v_x: __m256, v_mode: __m256, v_lo: __m256, v_hi: __m256) -> __m256 {
+pub fn raw_batch_asymmetric_fma_cols_f32(v_x: __m256, v_mode: __m256, v_lo: __m256, v_hi: __m256) -> __m256 {
     unsafe {
         let mask = _mm256_cmp_ps(v_x, _mm256_setzero_ps(), _CMP_LT_OQ);
         let sigma = _mm256_blendv_ps(v_hi, v_lo, mask);
@@ -167,7 +167,7 @@ pub unsafe fn raw_batch_asymmetric_fma_cols_f32(v_x: __m256, v_mode: __m256, v_l
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_asymmetric_fma_cols_f32(v_x: __m128, v_mode: __m128, v_lo: __m128, v_hi: __m128) -> __m128 {
+pub fn raw_batch4_asymmetric_fma_cols_f32(v_x: __m128, v_mode: __m128, v_lo: __m128, v_hi: __m128) -> __m128 {
     unsafe {
         let mask = _mm_cmp_ps(v_x, _mm_setzero_ps(), _CMP_LT_OQ);
         let sigma = _mm_blendv_ps(v_hi, v_lo, mask);
@@ -181,7 +181,7 @@ pub unsafe fn raw_batch4_asymmetric_fma_cols_f32(v_x: __m128, v_mode: __m128, v_
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_fmadd_f64(v_x: __m256d, m: f64, a: f64) -> __m256d {
+pub fn raw_batch_fmadd_f64(v_x: __m256d, m: f64, a: f64) -> __m256d {
     unsafe {
         let v_m = _mm256_set1_pd(m);
         let v_a = _mm256_set1_pd(a);
@@ -195,7 +195,7 @@ pub unsafe fn raw_batch_fmadd_f64(v_x: __m256d, m: f64, a: f64) -> __m256d {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_asymmetric_fma_f64(v_x: __m256d, mode: f64, sigma_lo: f64, sigma_hi: f64) -> __m256d {
+pub fn raw_batch_asymmetric_fma_f64(v_x: __m256d, mode: f64, sigma_lo: f64, sigma_hi: f64) -> __m256d {
     unsafe {
         let v_mode = _mm256_set1_pd(mode);
         let v_lo = _mm256_set1_pd(sigma_lo);
@@ -213,7 +213,7 @@ pub unsafe fn raw_batch_asymmetric_fma_f64(v_x: __m256d, mode: f64, sigma_lo: f6
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch_asymmetric_fma_cols_f64(v_x: __m256d, v_mode: __m256d, v_lo: __m256d, v_hi: __m256d) -> __m256d {
+pub fn raw_batch_asymmetric_fma_cols_f64(v_x: __m256d, v_mode: __m256d, v_lo: __m256d, v_hi: __m256d) -> __m256d {
     unsafe {
         let mask = _mm256_cmp_pd(v_x, _mm256_setzero_pd(), _CMP_LT_OQ);
         let sigma = _mm256_blendv_pd(v_hi, v_lo, mask);
@@ -221,12 +221,31 @@ pub unsafe fn raw_batch_asymmetric_fma_cols_f64(v_x: __m256d, v_mode: __m256d, v
     }
 }
 
+
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "avx2"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_mul_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
+pub fn raw_batch_div_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
+    unsafe { _mm_div_ps(v_x, v_y) }
+}
+
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2"
+))]
+#[inline(always)]
+pub fn raw_batch_div_cols_f64(v_x: __m256d, v_y: __m256d) -> __m256d {
+    unsafe { _mm256_div_pd(v_x, v_y) }
+}
+
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2"
+))]
+#[inline(always)]
+pub fn raw_batch4_mul_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
     unsafe { _mm_mul_ps(v_x, v_y) }
 }
 
@@ -235,7 +254,7 @@ pub unsafe fn raw_batch4_mul_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
     target_feature = "avx2"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_add_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
+pub fn raw_batch4_add_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
     unsafe { _mm_add_ps(v_x, v_y) }
 }
 
@@ -245,6 +264,6 @@ pub unsafe fn raw_batch4_add_cols_f32(v_x: __m128, v_y: __m128) -> __m128 {
     target_feature = "fma"
 ))]
 #[inline(always)]
-pub unsafe fn raw_batch4_fma_cols_f32(v_x: __m128, v_y: __m128, v_z: __m128) -> __m128 {
+pub fn raw_batch4_fma_cols_f32(v_x: __m128, v_y: __m128, v_z: __m128) -> __m128 {
     unsafe { _mm_fmadd_ps(v_x, v_y, v_z) }
 }
