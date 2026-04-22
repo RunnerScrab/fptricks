@@ -430,17 +430,29 @@ pub fn chunk4_approx_powf_cols_f32(x: [f32; 4], y: [f32; 4]) -> [f32; 4] {
 }
 
 #[inline(always)]
-pub fn batch_approx_powi_cols_f32(x: [f32; 8], n: [i32; 8]) -> [f32; 8] {
+pub fn batch_approx_powi_cols_f32<const N: usize>(x: &[f32; N], n: &[i32; N]) -> [f32; N] {
+    let mut out: [MaybeUninit<f32>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(
         target_arch = "x86_64",
         target_feature = "avx2",
         target_feature = "fma"
     ))]
     unsafe {
-        let v_base: core::arch::x86_64::__m256 = core::mem::transmute(x);
-        let v_n: core::arch::x86_64::__m256i = core::mem::transmute(n);
-        let res = crate::raw_batch_approx_powi_cols_f32(v_base, v_n);
-        core::mem::transmute(res)
+        let mut i = 0;
+        let x_ptr = x.as_ptr();
+        let n_ptr = n.as_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f32;
+        while i + 7 < N {
+            let vx = _mm256_loadu_ps(x_ptr.add(i));
+            let vn = _mm256_loadu_si256(n_ptr.add(i) as *const __m256i);
+            let res = crate::raw_batch_approx_powi_cols_f32(vx, vn);
+            _mm256_storeu_ps(out_ptr.add(i), res);
+            i += 8;
+        }
+        while i < N {
+            out_ptr.add(i).write(x[i].approx_powi(n[i]));
+            i += 1;
+        }
     }
     #[cfg(not(all(
         target_arch = "x86_64",
@@ -448,11 +460,48 @@ pub fn batch_approx_powi_cols_f32(x: [f32; 8], n: [i32; 8]) -> [f32; 8] {
         target_feature = "fma"
     )))]
     {
-        let mut out = [0.0; 8];
-        for i in 0..8 {
+        for i in 0..N {
+            out[i].write(x[i].approx_powi(n[i]));
+        }
+    }
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_approx_powi_vec_f32(x: &[f32], n: &[i32], out: &mut [f32]) {
+    assert!(x.len() == n.len() && n.len() == out.len());
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        let mut i = 0;
+        let len = x.len();
+        let x_ptr = x.as_ptr();
+        let n_ptr = n.as_ptr();
+        let out_ptr = out.as_mut_ptr();
+        while i + 7 < len {
+            let vx = _mm256_loadu_ps(x_ptr.add(i));
+            let vn = _mm256_loadu_si256(n_ptr.add(i) as *const __m256i);
+            let res = crate::raw_batch_approx_powi_cols_f32(vx, vn);
+            _mm256_storeu_ps(out_ptr.add(i), res);
+            i += 8;
+        }
+        while i < len {
+            out[i] = x[i].approx_powi(n[i]);
+            i += 1;
+        }
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        for i in 0..x.len() {
             out[i] = x[i].approx_powi(n[i]);
         }
-        out
     }
 }
 
@@ -537,17 +586,30 @@ pub fn chunk_approx_powf_cols_f64(x: [f64; 4], y: [f64; 4]) -> [f64; 4] {
 }
 
 #[inline(always)]
-pub fn batch_approx_powi_cols_f64(x: [f64; 4], n: [i32; 4]) -> [f64; 4] {
+pub fn batch_approx_powi_cols_f64<const N: usize>(x: &[f64; N], n: &[i32; N]) -> [f64; N] {
+    let mut out: [MaybeUninit<f64>; N] = unsafe { MaybeUninit::uninit().assume_init() };
     #[cfg(all(
         target_arch = "x86_64",
         target_feature = "avx2",
         target_feature = "fma"
     ))]
     unsafe {
-        let v_base: core::arch::x86_64::__m256d = core::mem::transmute(x);
-        let v_n: core::arch::x86_64::__m128i = core::mem::transmute(n);
-        let res = crate::raw_batch_approx_powi_cols_f64(v_base, v_n);
-        core::mem::transmute(res)
+        let mut i = 0;
+        let len = N;
+        let x_ptr = x.as_ptr();
+        let n_ptr = n.as_ptr();
+        let out_ptr = out.as_mut_ptr() as *mut f64;
+        while i + 3 < len {
+            let vx = _mm256_loadu_pd(x_ptr.add(i));
+            let vn = _mm_loadu_si128(n_ptr.add(i) as *const __m128i);
+            let res = crate::raw_batch_approx_powi_cols_f64(vx, vn);
+            _mm256_storeu_pd(out_ptr.add(i), res);
+            i += 4;
+        }
+        while i < len {
+            out_ptr.add(i).write(x[i].approx_powi(n[i]));
+            i += 1;
+        }
     }
     #[cfg(not(all(
         target_arch = "x86_64",
@@ -555,11 +617,48 @@ pub fn batch_approx_powi_cols_f64(x: [f64; 4], n: [i32; 4]) -> [f64; 4] {
         target_feature = "fma"
     )))]
     {
-        let mut out = [0.0; 4];
-        for i in 0..4 {
+        for i in 0..N {
+            out[i].write(x[i].approx_powi(n[i]));
+        }
+    }
+    unsafe { core::mem::transmute_copy(&out) }
+}
+
+#[inline(always)]
+pub fn batch_approx_powi_vec_f64(x: &[f64], n: &[i32], out: &mut [f64]) {
+    assert!(x.len() == n.len() && n.len() == out.len());
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
+    unsafe {
+        let mut i = 0;
+        let len = x.len();
+        let x_ptr = x.as_ptr();
+        let n_ptr = n.as_ptr();
+        let out_ptr = out.as_mut_ptr();
+        while i + 3 < len {
+            let vx = _mm256_loadu_pd(x_ptr.add(i));
+            let vn = _mm_loadu_si128(n_ptr.add(i) as *const __m128i);
+            let res = crate::raw_batch_approx_powi_cols_f64(vx, vn);
+            _mm256_storeu_pd(out_ptr.add(i), res);
+            i += 4;
+        }
+        while i < len {
+            out[i] = x[i].approx_powi(n[i]);
+            i += 1;
+        }
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
+    {
+        for i in 0..x.len() {
             out[i] = x[i].approx_powi(n[i]);
         }
-        out
     }
 }
 
@@ -899,7 +998,7 @@ mod tests {
     fn test_batch_approx_powi_cols_f32() {
         let x = [1.0, 2.0, 3.0, 4.0, 2.0, 2.0, 0.5, 10.0];
         let n = [0, 1, 2, 3, -1, -2, 2, 5];
-        let batch_res = batch_approx_powi_cols_f32(x, n);
+        let batch_res = batch_approx_powi_cols_f32(&x, &n);
         for i in 0..8 {
             let scalar_res = crate::approx_powi_f32(x[i], n[i]);
             assert_eq!(
@@ -915,13 +1014,37 @@ mod tests {
     }
 
     #[test]
+    fn test_batch_approx_powi_vec_f32() {
+        let x = vec![1.0, 2.0, 3.0, 4.0, 2.0, 2.0, 0.5, 10.0, 2.0, 3.0];
+        let n = vec![0, 1, 2, 3, -1, -2, 2, 5, 2, 2];
+        let mut out = vec![0.0; 10];
+        batch_approx_powi_vec_f32(&x, &n, &mut out);
+        for i in 0..10 {
+            let scalar_res = crate::approx_powi_f32(x[i], n[i]);
+            assert_eq!(out[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
     fn test_batch_approx_powi_cols_f64() {
         let x = [1.0, 2.0, 3.0, 0.5];
         let n = [0, 2, -1, 3];
-        let batch_res = batch_approx_powi_cols_f64(x, n);
+        let batch_res = batch_approx_powi_cols_f64(&x, &n);
         for i in 0..4 {
             let scalar_res = crate::approx_powi_f64(x[i], n[i]);
             assert_eq!(batch_res[i].to_bits(), scalar_res.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_batch_approx_powi_vec_f64() {
+        let x = vec![1.0, 2.0, 3.0, 0.5, 2.0, 4.0];
+        let n = vec![0, 2, -1, 3, 2, 2];
+        let mut out = vec![0.0; 6];
+        batch_approx_powi_vec_f64(&x, &n, &mut out);
+        for i in 0..6 {
+            let scalar_res = crate::approx_powi_f64(x[i], n[i]);
+            assert_eq!(out[i].to_bits(), scalar_res.to_bits());
         }
     }
 
